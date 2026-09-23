@@ -2,7 +2,7 @@
 // @name         zh文章屏蔽器
 // @name:en      Zhihu Article Shield
 // @namespace    https://github.com/imenk2/zhihu-shield
-// @version      0.0.3.3
+// @version      0.0.5
 // @description  自动屏蔽zh推荐栏非技术类文章，支持话题/作者/关键词/标题多维度黑白名单过滤，标题前圆点快速加黑名单
 // @author       imenk2
 // @match        https://www.zhihu.com/*
@@ -52,12 +52,7 @@
       '.RichText',
       '.ContentItem-summary',
     ],
-    topics: [
-      '.TopicLink',
-      'a[class*="TopicLink"]',
-      '.ContentItem-title + div a[class*="Topic"]',
-      'a[data-za-detail-view-path-module="TopicItem"]',
-    ],
+
     content: [
       '.ContentItem-content',
       '.RichContent',
@@ -103,19 +98,7 @@
     ],
     techAuthors: [],
     nonTechAuthors: [],
-    techTopics: [
-      '编程', '计算机科学', '软件工程', '算法与数据结构', '程序员',
-      '前端开发', '后端开发', '人工智能', '机器学习', '深度学习',
-      '数据库', '操作系统', '计算机网络', '信息安全', '密码学',
-      '编译器', 'Linux', '开源软件', 'GitHub', 'Git',
-      '数学', '统计学', '物理学', '电子工程',
-    ],
-    nonTechTopics: [
-      '情感', '星座', '娱乐', '时尚', '美食', '旅游',
-      '摄影', '宠物', '游戏', '动漫', '历史', '哲学',
-      '文学', '艺术', '心理学', '教育', '社会', '时事',
-      '健康', '养生', '汽车', '房产', '理财',
-    ],
+
     defaultAction: 'pass',
     debug: false,
   };
@@ -208,17 +191,12 @@
       if (summary.length > MAX_SUMMARY_LENGTH) summary = summary.slice(0, MAX_SUMMARY_LENGTH);
     }
 
-    const topicEls = querySelectorAllAny(card, SELECTORS.topics);
-    const topics = topicEls
-      .map((el) => (el.innerText || el.textContent || '').trim())
-      .filter((t) => t.length > 0);
-
     if (!title && !summary) return null;
-    return { title, author, summary, topics };
+    return { title, author, summary };
   }
 
   function classifyArticle(info) {
-    const { title, summary, author, topics } = info;
+    const { title, summary, author } = info;
     const text = title + ' ' + summary;
 
     if (title && config.titleBlacklist && config.titleBlacklist.length > 0) {
@@ -238,35 +216,32 @@
     }
 
     if (author && config.techAuthors.length > 0) {
+      let techAuthorHit = false;
       for (const a of config.techAuthors) {
-        if (a && (author === a || author.includes(a) || a.includes(author))) {
-          return { isTech: true, reason: '作者白名单: ' + author };
-        }
+        if (a && (author === a || author.includes(a) || a.includes(author))) { techAuthorHit = true; break; }
       }
-    }
-
-    if (topics.length > 0) {
-      for (const topic of topics) {
-        for (const t of config.techTopics) {
-          if (t && (topic.includes(t) || t.includes(topic))) {
-            return { isTech: true, reason: '技术话题: ' + topic };
+      if (techAuthorHit) {
+        for (const kw of config.nonTechKeywords) {
+          if (kw && text.includes(kw)) {
+            return { isTech: false, reason: '冲突: 作者白名单 vs 非技术关键词 ' + kw, conflict: true };
           }
         }
-      }
-      for (const topic of topics) {
-        for (const t of config.nonTechTopics) {
-          if (t && (topic.includes(t) || t.includes(topic))) {
-            return { isTech: false, reason: '非技术话题: ' + topic };
-          }
-        }
+        return { isTech: true, reason: '作者白名单: ' + author };
       }
     }
 
     const lowerText = text.toLowerCase();
+    let techKwHit = null;
     for (const kw of config.techKeywords) {
-      if (kw && lowerText.includes(kw.toLowerCase())) {
-        return { isTech: true, reason: '技术关键词: ' + kw };
+      if (kw && lowerText.includes(kw.toLowerCase())) { techKwHit = kw; break; }
+    }
+    if (techKwHit) {
+      for (const kw of config.nonTechKeywords) {
+        if (kw && text.includes(kw)) {
+          return { isTech: false, reason: '冲突: 技术关键词 ' + techKwHit + ' vs 非技术关键词 ' + kw, conflict: true };
+        }
       }
+      return { isTech: true, reason: '技术关键词: ' + techKwHit };
     }
 
     for (const kw of config.nonTechKeywords) {
@@ -296,6 +271,10 @@
     style.textContent = [
       '.ztf-banner{display:flex;align-items:center;gap:8px;padding:4px 10px;background:#3a3a3c;border:1px solid #5a5a5c;border-radius:4px;margin:0 0 4px !important;cursor:pointer;font-size:12px;color:#d8d8d8;box-sizing:border-box;position:relative;}',
       '.ztf-banner:hover{background:#48484a;}',
+      '.ztf-banner.ztf-banner-conflict{background:#6b5d20;border-color:#d4a72c;}',
+      '.ztf-banner.ztf-banner-conflict:hover{background:#7d6e26;}',
+      '.ztf-banner.ztf-banner-conflict .ztf-banner-icon{color:#ffd54f;}',
+      '.ztf-banner.ztf-banner-conflict .ztf-banner-text{color:#ffe9a8;}',
       '.ztf-banner-icon{color:#b0b0b0;font-size:13px;font-weight:bold;flex-shrink:0;}',
       '.ztf-banner-text{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}',
       '.ztf-banner-action{color:#7ab7ff;flex-shrink:0;}',
@@ -361,7 +340,7 @@
     card.querySelectorAll('.ztf-collapsed').forEach((n) => n.classList.remove('ztf-collapsed'));
   }
 
-  function blockCard(card, info) {
+  function blockCard(card, info, conflict) {
     if (card.dataset.ztfStatus === 'blocked') return;
     card.dataset.ztfStatus = 'blocked';
     card.dataset.ztfDot = '1';
@@ -378,7 +357,7 @@
     collapsibles.forEach((c) => c.classList.add('ztf-collapsed'));
 
     const banner = document.createElement('div');
-    banner.className = 'ztf-banner';
+    banner.className = 'ztf-banner' + (conflict ? ' ztf-banner-conflict' : '');
 
     const icon = document.createElement('span');
     icon.className = 'ztf-banner-icon';
@@ -439,8 +418,8 @@
     menu.innerHTML =
       '<div class="ztf-dot-item" data-action="addKw">添加屏蔽关键词</div>' +
       '<div class="ztf-dot-item" data-action="removeKw">移除屏蔽关键词</div>' +
-      '<div class="ztf-dot-item" data-action="addTopic">追加屏蔽标签</div>' +
-      '<div class="ztf-dot-item" data-action="removeTopic">移除屏蔽标签</div>';
+      '<div class="ztf-dot-item" data-action="addAuthor">添加屏蔽作者</div>' +
+      '<div class="ztf-dot-item" data-action="removeAuthor">移除屏蔽作者</div>';
     menu.style.top = (rect.bottom + 4) + 'px';
     menu.style.left = rect.left + 'px';
     document.body.appendChild(menu);
@@ -455,48 +434,47 @@
         const kw = window.prompt('输入要添加的屏蔽关键词：', info.title || '');
         if (kw && kw.trim()) {
           const v = kw.trim();
-          if (!config.nonTechKeywords) config.nonTechKeywords = [];
-          if (!config.nonTechKeywords.includes(v)) {
-            config.nonTechKeywords.push(v);
-            saveConfig(config);
+          if ((config.techKeywords || []).includes(v)) {
+            window.alert('「' + v + '」已在关键词白名单中，不能加入黑名单');
+          } else {
+            if (!config.nonTechKeywords) config.nonTechKeywords = [];
+            if (!config.nonTechKeywords.includes(v)) {
+              config.nonTechKeywords.push(v);
+              saveConfig(config);
+            }
           }
         }
       } else if (action === 'removeKw') {
-        const kw = window.prompt('输入要移除的屏蔽关键词：');
+        const kw = window.prompt('输入要移除的屏蔽关键词：', info.title || '');
         if (kw && kw.trim()) {
           const v = kw.trim();
           config.nonTechKeywords = (config.nonTechKeywords || []).filter((k) => k !== v);
           saveConfig(config);
         }
-      } else if (action === 'addTopic') {
-        const topics = info.topics && info.topics.length > 0 ? info.topics : null;
-        if (topics) {
-          if (!config.nonTechTopics) config.nonTechTopics = [];
-          topics.forEach((t) => { if (!config.nonTechTopics.includes(t)) config.nonTechTopics.push(t); });
-          saveConfig(config);
-        } else {
-          const t = window.prompt('当前文章无标签，输入要追加的屏蔽标签：');
-          if (t && t.trim()) {
-            if (!config.nonTechTopics) config.nonTechTopics = [];
-            if (!config.nonTechTopics.includes(t.trim())) config.nonTechTopics.push(t.trim());
-            saveConfig(config);
+      } else if (action === 'addAuthor') {
+        const a = window.prompt('输入要添加的屏蔽作者：', info.author || '');
+        if (a && a.trim()) {
+          const v = a.trim();
+          if ((config.techAuthors || []).includes(v)) {
+            window.alert('「' + v + '」已在作者白名单中，不能加入黑名单');
+          } else {
+            if (!config.nonTechAuthors) config.nonTechAuthors = [];
+            if (!config.nonTechAuthors.includes(v)) {
+              config.nonTechAuthors.push(v);
+              saveConfig(config);
+            }
           }
         }
-      } else if (action === 'removeTopic') {
-        const topics = info.topics && info.topics.length > 0 ? info.topics : null;
-        if (topics) {
-          config.nonTechTopics = (config.nonTechTopics || []).filter((t) => !topics.includes(t));
+      } else if (action === 'removeAuthor') {
+        const a = window.prompt('输入要移除的屏蔽作者：', info.author || '');
+        if (a && a.trim()) {
+          const v = a.trim();
+          config.nonTechAuthors = (config.nonTechAuthors || []).filter((x) => x !== v);
           saveConfig(config);
-        } else {
-          const t = window.prompt('当前文章无标签，输入要移除的屏蔽标签：');
-          if (t && t.trim()) {
-            config.nonTechTopics = (config.nonTechTopics || []).filter((x) => x !== t.trim());
-            saveConfig(config);
-          }
         }
       }
       closeDotMenu();
-      document.querySelectorAll('[data-ztf-status]').forEach((el) => resetCardAll(el));
+      document.querySelectorAll('[data-ztf-dot], [data-ztf-status]').forEach((el) => resetCardAll(el));
       stats.blocked = 0; stats.passed = 0; stats.passedTech = 0;
       scanCards();
     });
@@ -511,7 +489,7 @@
     const dot = document.createElement('span');
     dot.className = isBanner ? 'ztf-banner-dot' : 'ztf-title-dot';
     dot.textContent = '\u22ef';
-    dot.title = '屏蔽关键词/标签管理';
+    dot.title = '屏蔽关键词/作者管理';
     dot.addEventListener('click', (e) => {
       e.stopPropagation();
       e.preventDefault();
@@ -543,7 +521,7 @@
 
       const result = classifyArticle(info);
       if (!result.isTech) {
-        blockCard(card, info);
+        blockCard(card, info, result.conflict);
       } else {
         injectDotUnblocked(card, info);
         stats.passed++;
@@ -597,8 +575,7 @@
     const tabs = [
       { id: 'techKeywords', label: '关键词白名单' },
       { id: 'nonTechKeywords', label: '关键词黑名单' },
-      { id: 'techTopics', label: '话题白名单' },
-      { id: 'nonTechTopics', label: '话题黑名单' },
+
       { id: 'techAuthors', label: '作者白名单' },
       { id: 'nonTechAuthors', label: '作者黑名单' },
       { id: 'titleBlacklist', label: '标题黑名单' },
@@ -656,7 +633,7 @@
             '<div class="ztf-toggle' + (config.debug ? ' on' : '') + '" id="ztf-debug-toggle"></div>' +
           '</div>' +
           '<p class="ztf-hint">' +
-            '判定优先级：标题黑名单 > 作者黑名单 > 作者白名单 > 话题白名单 > 话题黑名单 > 关键词白名单 > 关键词黑名单 > 默认行为。<br>' +
+            '判定优先级：标题黑名单 > 作者黑名单 > 作者白名单 > 关键词白名单 > 关键词黑名单 > 默认行为。<br>' +
             '白名单优先于黑名单，避免「游戏编程」这类含非技术词的技术文章被误杀。<br>' +
             '匹配方式为子串包含（模糊匹配），关键词不区分大小写。' +
           '</p>';
