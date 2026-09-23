@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         zh技术文章屏蔽器
-// @name:en      Zhihu Tech Article Filter
+// @name         zh文章屏蔽器
+// @name:en      Zhihu Article Shield
 // @namespace    https://github.com/imenk2/zhihu-shield
-// @version      1.2.0
+// @version      0.0.3.3
 // @description  自动屏蔽zh推荐栏非技术类文章，支持话题/作者/关键词/标题多维度黑白名单过滤，标题前圆点快速加黑名单
 // @author       imenk2
 // @match        https://www.zhihu.com/*
@@ -102,6 +102,7 @@
       '节日', '过年', '春节', '中秋', '情人节',
     ],
     techAuthors: [],
+    nonTechAuthors: [],
     techTopics: [
       '编程', '计算机科学', '软件工程', '算法与数据结构', '程序员',
       '前端开发', '后端开发', '人工智能', '机器学习', '深度学习',
@@ -178,7 +179,8 @@
     let title = '';
     let author = '';
 
-    const zopRaw = card.getAttribute('data-zop');
+    const zopEl = card.hasAttribute('data-zop') ? card : card.querySelector('[data-zop]');
+    const zopRaw = zopEl ? zopEl.getAttribute('data-zop') : null;
     if (zopRaw) {
       try {
         const zop = JSON.parse(zopRaw);
@@ -223,6 +225,14 @@
       for (const bt of config.titleBlacklist) {
         if (bt && title.includes(bt)) {
           return { isTech: false, reason: '标题黑名单' };
+        }
+      }
+    }
+
+    if (author && config.nonTechAuthors && config.nonTechAuthors.length > 0) {
+      for (const a of config.nonTechAuthors) {
+        if (a && (author === a || author.includes(a) || a.includes(author))) {
+          return { isTech: false, reason: '作者黑名单: ' + author };
         }
       }
     }
@@ -284,18 +294,19 @@
     const style = document.createElement('style');
     style.id = 'ztf-styles';
     style.textContent = [
-      '.ztf-banner{display:flex;align-items:center;gap:6px;padding:4px 40px 4px 10px;background:#3a3a3c;border:1px solid #5a5a5c;border-radius:4px;margin:2px 0;cursor:pointer;font-size:12px;color:#d8d8d8;box-sizing:border-box;}',
+      '.ztf-banner{display:flex;align-items:center;gap:8px;padding:4px 10px;background:#3a3a3c;border:1px solid #5a5a5c;border-radius:4px;margin:0 0 4px !important;cursor:pointer;font-size:12px;color:#d8d8d8;box-sizing:border-box;position:relative;}',
       '.ztf-banner:hover{background:#48484a;}',
       '.ztf-banner-icon{color:#b0b0b0;font-size:13px;font-weight:bold;flex-shrink:0;}',
       '.ztf-banner-text{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}',
       '.ztf-banner-action{color:#7ab7ff;flex-shrink:0;}',
+      '.ztf-banner-dot{color:#b0b0b0;font-size:16px;font-weight:bold;line-height:1;padding:2px 6px;border-radius:3px;cursor:pointer;flex-shrink:0;user-select:none;}',
+      '.ztf-banner-dot:hover{color:#fff;background:rgba(255,255,255,0.15);}',
       '.ztf-collapsed{display:none !important;}',
       '[data-ztf-status="blocked"]{margin-top:0 !important;margin-bottom:4px !important;padding-top:0 !important;padding-bottom:0 !important;}',
-      '.ztf-banner{margin:0 0 2px !important;}',
-      '.ztf-pass-mark{position:absolute;top:4px;right:4px;font-size:11px;color:#67c23a;background:#f0f9eb;padding:1px 6px;border-radius:8px;z-index:5;pointer-events:none;}',
+      '.ztf-pass-mark{position:absolute;top:4px;right:28px;font-size:11px;color:#67c23a;background:#f0f9eb;padding:1px 6px;border-radius:8px;z-index:5;pointer-events:none;}',
       '.ztf-title-dot{position:absolute;right:8px;top:8px;cursor:pointer;z-index:10;color:#c9c9c9;font-size:16px;line-height:1;user-select:none;padding:2px 4px;font-weight:bold;}',
       '.ztf-title-dot:hover{color:#8590a6;}',
-      '[data-ztf-status="blocked"] .ztf-title-dot{top:50%;transform:translateY(-50%);}',
+
       '.ztf-dot-menu{position:fixed;z-index:99997;background:#fff;border:1px solid #ebeced;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,0.15);padding:4px 0;min-width:140px;font-size:13px;}',
       '.ztf-dot-item{padding:7px 14px;cursor:pointer;color:#1a1a1a;}',
       '.ztf-dot-item:hover{background:#f6f6f6;}',
@@ -330,44 +341,66 @@
       '.ztf-tab-content{display:none;}',
       '.ztf-tab-content.active{display:block;}',
       '.ztf-hint{font-size:12px;color:#999;margin:6px 0 0;line-height:1.6;}',
-      '.ztf-fab{position:fixed;right:16px;bottom:16px;z-index:99996;width:40px;height:40px;border-radius:50%;background:#1772f6;color:#fff;border:none;cursor:pointer;font-size:20px;line-height:1;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;opacity:0.55;transition:opacity 0.2s,transform 0.2s;}',
-      '.ztf-fab:hover{opacity:1;transform:scale(1.05);}',
-      '.ztf-fab-label{position:absolute;right:52px;top:50%;transform:translateY(-50%);background:#1a1a1a;color:#fff;font-size:12px;padding:4px 8px;border-radius:4px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity 0.2s;}',
-      '.ztf-fab:hover .ztf-fab-label{opacity:0.9;}',
-    ].join(NEWLINE);
+      '.ztf-fab{position:fixed;z-index:99996;width:40px;height:40px;border-radius:50%;background:#1772f6;color:#fff;border:none;cursor:pointer;font-size:20px;line-height:1;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity 0.2s;user-select:none;}',
+      '.ztf-fab.show{opacity:1;pointer-events:auto;}',
+      '.ztf-fab.dragging{transition:none;cursor:grabbing;}',
+     ].join(NEWLINE);
     document.head.appendChild(style);
   }
 
   function resetCardStatus(card) {
     card.removeAttribute('data-ztf-status');
-    card.querySelectorAll('.ztf-banner, .ztf-pass-mark').forEach((n) => n.remove());
+    card.querySelectorAll('.ztf-banner, .ztf-pass-mark, .ztf-banner-dot').forEach((n) => n.remove());
     card.querySelectorAll('.ztf-collapsed').forEach((n) => n.classList.remove('ztf-collapsed'));
   }
 
   function resetCardAll(card) {
     card.removeAttribute('data-ztf-status');
     card.removeAttribute('data-ztf-dot');
-    card.querySelectorAll('.ztf-banner, .ztf-pass-mark, .ztf-title-dot').forEach((n) => n.remove());
+    card.querySelectorAll('.ztf-banner, .ztf-pass-mark, .ztf-title-dot, .ztf-banner-dot').forEach((n) => n.remove());
     card.querySelectorAll('.ztf-collapsed').forEach((n) => n.classList.remove('ztf-collapsed'));
   }
 
-  function blockCard(card, title) {
+  function blockCard(card, info) {
     if (card.dataset.ztfStatus === 'blocked') return;
     card.dataset.ztfStatus = 'blocked';
+    card.dataset.ztfDot = '1';
 
+    const existingDot = card.querySelector(':scope > .ztf-title-dot');
+    if (existingDot) existingDot.remove();
+
+    const title = info.title || '';
     const shortTitle = title.length > MAX_TITLE_DISPLAY ? title.slice(0, MAX_TITLE_DISPLAY) + '...' : title;
 
-    const collapsibles = Array.from(card.children).filter((c) => !c.classList.contains('ztf-title-dot'));
+    const collapsibles = Array.from(card.children).filter(
+      (c) => !c.classList.contains('ztf-title-dot') && !c.classList.contains('ztf-banner')
+    );
     collapsibles.forEach((c) => c.classList.add('ztf-collapsed'));
 
     const banner = document.createElement('div');
     banner.className = 'ztf-banner';
-    banner.innerHTML =
-      '<span class="ztf-banner-icon">\u2298</span>' +
-      '<span class="ztf-banner-text">\u5df2\u5c4f\u853d \u00b7 ' + escapeHtml(shortTitle) + '</span>' +
-      '<span class="ztf-banner-action">\u5c55\u5f00\u67e5\u770b</span>';
+
+    const icon = document.createElement('span');
+    icon.className = 'ztf-banner-icon';
+    icon.textContent = '\u2298';
+
+    const text = document.createElement('span');
+    text.className = 'ztf-banner-text';
+    text.textContent = '\u5df2\u5c4f\u853d \u00b7 ' + shortTitle;
+
+    const action = document.createElement('span');
+    action.className = 'ztf-banner-action';
+    action.textContent = '\u5c55\u5f00\u67e5\u770b';
+
+    const dot = createDotButton(card, info, true);
+
+    banner.appendChild(icon);
+    banner.appendChild(text);
+    banner.appendChild(action);
+    banner.appendChild(dot);
 
     banner.addEventListener('click', (e) => {
+      if (e.target === dot) return;
       e.stopPropagation();
       e.preventDefault();
       let nowCollapsed = false;
@@ -375,7 +408,7 @@
         c.classList.toggle('ztf-collapsed');
         nowCollapsed = c.classList.contains('ztf-collapsed');
       });
-      banner.querySelector('.ztf-banner-action').textContent = nowCollapsed ? '\u5c55\u5f00\u67e5\u770b' : '\u6536\u8d77';
+      action.textContent = nowCollapsed ? '\u5c55\u5f00\u67e5\u770b' : '\u6536\u8d77';
     });
 
     card.insertBefore(banner, card.firstChild);
@@ -404,8 +437,10 @@
     const menu = document.createElement('div');
     menu.className = 'ztf-dot-menu';
     menu.innerHTML =
-      '<div class="ztf-dot-item" data-action="add">\u52a0\u5165\u6807\u9898\u9ed1\u540d\u5355</div>' +
-      '<div class="ztf-dot-item" data-action="remove">\u79fb\u51fa\u6807\u9898\u9ed1\u540d\u5355</div>';
+      '<div class="ztf-dot-item" data-action="addKw">添加屏蔽关键词</div>' +
+      '<div class="ztf-dot-item" data-action="removeKw">移除屏蔽关键词</div>' +
+      '<div class="ztf-dot-item" data-action="addTopic">追加屏蔽标签</div>' +
+      '<div class="ztf-dot-item" data-action="removeTopic">移除屏蔽标签</div>';
     menu.style.top = (rect.bottom + 4) + 'px';
     menu.style.left = rect.left + 'px';
     document.body.appendChild(menu);
@@ -416,62 +451,101 @@
       if (!item) return;
       e.stopPropagation();
       const action = item.dataset.action;
-      if (action === 'add') {
-        if (!config.titleBlacklist) config.titleBlacklist = [];
-        if (!config.titleBlacklist.includes(info.title)) {
-          config.titleBlacklist.push(info.title);
+      if (action === 'addKw') {
+        const kw = window.prompt('输入要添加的屏蔽关键词：', info.title || '');
+        if (kw && kw.trim()) {
+          const v = kw.trim();
+          if (!config.nonTechKeywords) config.nonTechKeywords = [];
+          if (!config.nonTechKeywords.includes(v)) {
+            config.nonTechKeywords.push(v);
+            saveConfig(config);
+          }
+        }
+      } else if (action === 'removeKw') {
+        const kw = window.prompt('输入要移除的屏蔽关键词：');
+        if (kw && kw.trim()) {
+          const v = kw.trim();
+          config.nonTechKeywords = (config.nonTechKeywords || []).filter((k) => k !== v);
           saveConfig(config);
         }
-        resetCardStatus(card);
-        blockCard(card, info.title);
-      } else if (action === 'remove') {
-        if (config.titleBlacklist) {
-          config.titleBlacklist = config.titleBlacklist.filter((bt) => bt !== info.title);
+      } else if (action === 'addTopic') {
+        const topics = info.topics && info.topics.length > 0 ? info.topics : null;
+        if (topics) {
+          if (!config.nonTechTopics) config.nonTechTopics = [];
+          topics.forEach((t) => { if (!config.nonTechTopics.includes(t)) config.nonTechTopics.push(t); });
           saveConfig(config);
+        } else {
+          const t = window.prompt('当前文章无标签，输入要追加的屏蔽标签：');
+          if (t && t.trim()) {
+            if (!config.nonTechTopics) config.nonTechTopics = [];
+            if (!config.nonTechTopics.includes(t.trim())) config.nonTechTopics.push(t.trim());
+            saveConfig(config);
+          }
         }
-        resetCardStatus(card);
-        const result = classifyArticle(info);
-        if (!result.isTech) {
-          blockCard(card, info.title);
+      } else if (action === 'removeTopic') {
+        const topics = info.topics && info.topics.length > 0 ? info.topics : null;
+        if (topics) {
+          config.nonTechTopics = (config.nonTechTopics || []).filter((t) => !topics.includes(t));
+          saveConfig(config);
+        } else {
+          const t = window.prompt('当前文章无标签，输入要移除的屏蔽标签：');
+          if (t && t.trim()) {
+            config.nonTechTopics = (config.nonTechTopics || []).filter((x) => x !== t.trim());
+            saveConfig(config);
+          }
         }
       }
       closeDotMenu();
+      document.querySelectorAll('[data-ztf-status]').forEach((el) => resetCardAll(el));
+      stats.blocked = 0; stats.passed = 0; stats.passedTech = 0;
+      scanCards();
     });
+
 
     setTimeout(() => {
       document.addEventListener('click', closeDotMenu, true);
     }, 0);
   }
 
-  function injectDot(card, info) {
-    if (card.dataset.ztfDot) return;
-    if (!info.title) return;
-    card.dataset.ztfDot = '1';
-    if (getComputedStyle(card).position === 'static') card.style.position = 'relative';
-
-    const dot = document.createElement('div');
-    dot.className = 'ztf-title-dot';
+  function createDotButton(card, info, isBanner) {
+    const dot = document.createElement('span');
+    dot.className = isBanner ? 'ztf-banner-dot' : 'ztf-title-dot';
     dot.textContent = '\u22ef';
-    dot.title = '\u52a0\u5165/\u79fb\u51fa\u9ed1\u540d\u5355';
+    dot.title = '屏蔽关键词/标签管理';
     dot.addEventListener('click', (e) => {
       e.stopPropagation();
       e.preventDefault();
       openDotMenu(dot, card, info);
     });
+    return dot;
+  }
+
+  function injectDotUnblocked(card, info) {
+    if (card.dataset.ztfDot) return;
+    if (!info.title) return;
+    card.dataset.ztfDot = '1';
+    if (getComputedStyle(card).position === 'static') card.style.position = 'relative';
+
+    const dot = createDotButton(card, info, false);
     card.appendChild(dot);
   }
 
   function scanCards() {
-    const cards = querySelectorAllAny(document, SELECTORS.cards);
+    const rawCards = querySelectorAllAny(document, SELECTORS.cards);
+    const cards = rawCards.filter((card) => {
+      return !rawCards.some((parent) => parent !== card && parent.contains(card));
+    });
+
     for (const card of cards) {
       const info = extractArticleInfo(card);
       if (!info) continue;
-      injectDot(card, info);
       if (card.dataset.ztfStatus) continue;
+
       const result = classifyArticle(info);
       if (!result.isTech) {
-        blockCard(card, info.title);
+        blockCard(card, info);
       } else {
+        injectDotUnblocked(card, info);
         stats.passed++;
         if (result.reason.startsWith('\u6280\u672f') || result.reason.startsWith('\u4f5c\u8005')) stats.passedTech++;
         if (config.debug) markPassed(card, result.reason);
@@ -521,18 +595,19 @@
     panel.id = 'ztf-panel';
 
     const tabs = [
-      { id: 'titleBlacklist', label: '\u6807\u9898\u9ed1\u540d\u5355' },
-      { id: 'techKeywords', label: '\u6280\u672f\u5173\u952e\u8bcd' },
-      { id: 'nonTechKeywords', label: '\u975e\u6280\u672f\u5173\u952e\u8bcd' },
-      { id: 'techAuthors', label: '\u6280\u672f\u4f5c\u8005' },
-      { id: 'techTopics', label: '\u6280\u672f\u8bdd\u9898' },
-      { id: 'nonTechTopics', label: '\u975e\u6280\u672f\u8bdd\u9898' },
-      { id: 'settings', label: '\u8bbe\u7f6e' },
+      { id: 'techKeywords', label: '关键词白名单' },
+      { id: 'nonTechKeywords', label: '关键词黑名单' },
+      { id: 'techTopics', label: '话题白名单' },
+      { id: 'nonTechTopics', label: '话题黑名单' },
+      { id: 'techAuthors', label: '作者白名单' },
+      { id: 'nonTechAuthors', label: '作者黑名单' },
+      { id: 'titleBlacklist', label: '标题黑名单' },
+      { id: 'settings', label: '设置' },
     ];
 
     panel.innerHTML =
       '<div class="ztf-panel-header">' +
-        '<span class="ztf-panel-title">\u77e5\u4e4e\u6280\u672f\u8fc7\u6ee4 \u2014 \u914d\u7f6e</span>' +
+        '<span class="ztf-panel-title">zh文章屏蔽器 — 配置</span>' +
         '<button class="ztf-panel-close" id="ztf-close">\u00d7</button>' +
       '</div>' +
       '<div class="ztf-panel-tabs" id="ztf-tabs">' +
@@ -581,9 +656,9 @@
             '<div class="ztf-toggle' + (config.debug ? ' on' : '') + '" id="ztf-debug-toggle"></div>' +
           '</div>' +
           '<p class="ztf-hint">' +
-            '\u5224\u5b9a\u4f18\u5148\u7ea7\uff1a\u6807\u9898\u9ed1\u540d\u5355 > \u4f5c\u8005\u767d\u540d\u5355 > \u8bdd\u9898\u6807\u7b7e > \u6280\u672f\u5173\u952e\u8bcd > \u975e\u6280\u672f\u5173\u952e\u8bcd > \u9ed8\u8ba4\u884c\u4e3a\u3002<br>' +
-            '\u6280\u672f\u5173\u952e\u8bcd\u4f18\u5148\u4e8e\u975e\u6280\u672f\u5173\u952e\u8bcd\uff0c\u907f\u514d\u300c\u6e38\u620f\u7f16\u7a0b\u300d\u8fd9\u7c7b\u542b\u975e\u6280\u672f\u8bcd\u7684\u6280\u672f\u6587\u7ae0\u88ab\u8bef\u6740\u3002<br>' +
-            '\u5339\u914d\u65b9\u5f0f\u4e3a\u5b50\u4e32\u5305\u542b\uff08\u6a21\u7cca\u5339\u914d\uff09\uff0c\u4e0d\u533a\u5206\u5927\u5c0f\u5199\u3002' +
+            '判定优先级：标题黑名单 > 作者黑名单 > 作者白名单 > 话题白名单 > 话题黑名单 > 关键词白名单 > 关键词黑名单 > 默认行为。<br>' +
+            '白名单优先于黑名单，避免「游戏编程」这类含非技术词的技术文章被误杀。<br>' +
+            '匹配方式为子串包含（模糊匹配），关键词不区分大小写。' +
           '</p>';
       } else {
         const value = config[t.id] || [];
@@ -593,10 +668,13 @@
             escapeHtml(value.join(NEWLINE)) +
           '</textarea>' +
           (t.id === 'titleBlacklist'
-            ? '<p class="ztf-hint">\u70b9\u51fb\u6587\u7ae0\u6807\u9898\u524d\u7684\u5706\u70b9\u53ef\u5feb\u901f\u52a0\u5165/\u79fb\u51fa\u3002\u6b64\u5904\u4e5f\u53ef\u624b\u52a8\u7f16\u8f91\uff0c\u5305\u542b\u5339\u914d\u3002</p>'
+            ? '<p class="ztf-hint">标题模糊屏蔽词（子串包含即屏蔽），每行一个。可用于快速屏蔽特定标题模式。</p>'
             : '') +
           (t.id === 'techAuthors'
-            ? '<p class="ztf-hint">\u586b\u5199\u77e5\u4e4e\u7528\u6237\u540d\uff08\u4e3b\u9875\u663e\u793a\u7684\u6635\u79f0\uff09\uff0c\u7cbe\u786e\u6216\u5305\u542b\u5339\u914d\u5747\u53ef\u3002\u7559\u7a7a\u5219\u4e0d\u542f\u7528\u4f5c\u8005\u767d\u540d\u5355\u3002</p>'
+            ? '<p class="ztf-hint">填写知乎用户名（主页显示的昵称），精确或包含匹配均可。命中则放行。</p>'
+            : '') +
+          (t.id === 'nonTechAuthors'
+            ? '<p class="ztf-hint">填写知乎用户名（主页显示的昵称），精确或包含匹配均可。命中则屏蔽。</p>'
             : '');
       }
       body.appendChild(div);
@@ -653,15 +731,95 @@
     statsEl = null;
   }
 
+  const FAB_PROXIMITY = 80;
+  const FAB_DRAG_THRESHOLD = 5;
+  const FAB_POS_KEY = 'ztf_fab_pos_v1';
+
   function injectFab() {
     if (document.getElementById('ztf-fab')) return;
     const fab = document.createElement('button');
     fab.className = 'ztf-fab';
     fab.id = 'ztf-fab';
-    fab.title = '\u77e5\u4e4e\u6280\u672f\u8fc7\u6ee4 \u2014 \u914d\u7f6e';
-    fab.innerHTML = '\u2691<span class="ztf-fab-label">\u914d\u7f6e\u8fc7\u6ee4\u89c4\u5219</span>';
-    fab.addEventListener('click', openConfigPanel);
+    fab.title = '配置过滤规则（可拖拽）';
+    fab.textContent = '\u2691';
+
+    let pos = null;
+    try { pos = GM_getValue(FAB_POS_KEY, null); } catch (e) { /* ignore */ }
+    const initX = (pos && typeof pos.x === 'number') ? pos.x : (window.innerWidth - 56);
+    const initY = (pos && typeof pos.y === 'number') ? pos.y : (window.innerHeight - 56);
+    fab.style.left = initX + 'px';
+    fab.style.top = initY + 'px';
     document.body.appendChild(fab);
+
+    let dragging = false;
+    let moved = false;
+    let startX = 0;
+    let startY = 0;
+    let offsetX = 0;
+    let offsetY = 0;
+    let hideTimer = null;
+
+    function showFab() {
+      clearTimeout(hideTimer);
+      fab.classList.add('show');
+    }
+
+    function hideFabSoon() {
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(() => {
+        if (!dragging && !document.getElementById('ztf-panel')) fab.classList.remove('show');
+      }, 400);
+    }
+
+    document.addEventListener('mousemove', (e) => {
+      if (dragging) {
+        if (Math.hypot(e.clientX - startX, e.clientY - startY) > FAB_DRAG_THRESHOLD) moved = true;
+        fab.style.left = (e.clientX - offsetX) + 'px';
+        fab.style.top = (e.clientY - offsetY) + 'px';
+        return;
+      }
+      const r = fab.getBoundingClientRect();
+      const dist = Math.hypot(e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2));
+      if (dist < FAB_PROXIMITY) showFab(); else hideFabSoon();
+    });
+
+    fab.addEventListener('mousedown', (e) => {
+      dragging = true;
+      moved = false;
+      startX = e.clientX;
+      startY = e.clientY;
+      const r = fab.getBoundingClientRect();
+      offsetX = e.clientX - r.left;
+      offsetY = e.clientY - r.top;
+      fab.classList.add('dragging');
+      showFab();
+      e.preventDefault();
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (!dragging) return;
+      dragging = false;
+      fab.classList.remove('dragging');
+      if (moved) {
+        try {
+          GM_setValue(FAB_POS_KEY, { x: parseInt(fab.style.left, 10), y: parseInt(fab.style.top, 10) });
+        } catch (e) { /* ignore */ }
+      } else {
+        openConfigPanel();
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      const r = fab.getBoundingClientRect();
+      let x = r.left;
+      let y = r.top;
+      if (x + 40 > window.innerWidth) x = window.innerWidth - 56;
+      if (y + 40 > window.innerHeight) y = window.innerHeight - 56;
+      if (x < 0) x = 8;
+      if (y < 0) y = 8;
+      fab.style.left = x + 'px';
+      fab.style.top = y + 'px';
+    });
   }
 
   function init() {
