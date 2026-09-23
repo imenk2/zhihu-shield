@@ -2,7 +2,7 @@
 // @name         zh文章屏蔽器
 // @name:en      Zhihu Article Shield
 // @namespace    https://github.com/imenk2/zhihu-shield
-// @version      0.0.5
+// @version      0.0.6
 // @description  自动屏蔽zh推荐栏非技术类文章，支持话题/作者/关键词/标题多维度黑白名单过滤，标题前圆点快速加黑名单
 // @author       imenk2
 // @match        https://www.zhihu.com/*
@@ -223,7 +223,12 @@
       if (techAuthorHit) {
         for (const kw of config.nonTechKeywords) {
           if (kw && text.includes(kw)) {
-            return { isTech: false, reason: '冲突: 作者白名单 vs 非技术关键词 ' + kw, conflict: true };
+            return {
+              isTech: false,
+              reason: '冲突: 作者白名单「' + author + '」vs 非技术关键词「' + kw + '」',
+              conflict: true,
+              conflictInfo: { whitelistField: 'techAuthors', whitelistValue: author, blacklistField: 'nonTechKeywords', blacklistValue: kw },
+            };
           }
         }
         return { isTech: true, reason: '作者白名单: ' + author };
@@ -238,7 +243,12 @@
     if (techKwHit) {
       for (const kw of config.nonTechKeywords) {
         if (kw && text.includes(kw)) {
-          return { isTech: false, reason: '冲突: 技术关键词 ' + techKwHit + ' vs 非技术关键词 ' + kw, conflict: true };
+          return {
+            isTech: false,
+            reason: '冲突: 技术关键词「' + techKwHit + '」vs 非技术关键词「' + kw + '」',
+            conflict: true,
+            conflictInfo: { whitelistField: 'techKeywords', whitelistValue: techKwHit, blacklistField: 'nonTechKeywords', blacklistValue: kw },
+          };
         }
       }
       return { isTech: true, reason: '技术关键词: ' + techKwHit };
@@ -275,6 +285,8 @@
       '.ztf-banner.ztf-banner-conflict:hover{background:#7d6e26;}',
       '.ztf-banner.ztf-banner-conflict .ztf-banner-icon{color:#ffd54f;}',
       '.ztf-banner.ztf-banner-conflict .ztf-banner-text{color:#ffe9a8;}',
+      '.ztf-banner-fix{color:#1a1a1a;background:#ffd54f;border:1px solid #d4a72c;border-radius:3px;padding:1px 6px;font-size:11px;cursor:pointer;flex-shrink:0;user-select:none;}',
+      '.ztf-banner-fix:hover{background:#ffca28;}',
       '.ztf-banner-icon{color:#b0b0b0;font-size:13px;font-weight:bold;flex-shrink:0;}',
       '.ztf-banner-text{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}',
       '.ztf-banner-action{color:#7ab7ff;flex-shrink:0;}',
@@ -340,7 +352,7 @@
     card.querySelectorAll('.ztf-collapsed').forEach((n) => n.classList.remove('ztf-collapsed'));
   }
 
-  function blockCard(card, info, conflict) {
+  function blockCard(card, info, conflict, conflictInfo, reason) {
     if (card.dataset.ztfStatus === 'blocked') return;
     card.dataset.ztfStatus = 'blocked';
     card.dataset.ztfDot = '1';
@@ -365,7 +377,7 @@
 
     const text = document.createElement('span');
     text.className = 'ztf-banner-text';
-    text.textContent = '\u5df2\u5c4f\u853d \u00b7 ' + shortTitle;
+    text.textContent = (conflict && reason) ? reason : ('\u5df2\u5c4f\u853d \u00b7 ' + shortTitle);
 
     const action = document.createElement('span');
     action.className = 'ztf-banner-action';
@@ -376,10 +388,42 @@
     banner.appendChild(icon);
     banner.appendChild(text);
     banner.appendChild(action);
+
+    if (conflict && conflictInfo) {
+      const fixBlack = document.createElement('span');
+      fixBlack.className = 'ztf-banner-fix';
+      fixBlack.textContent = '\u9ed1\u540d\u5355fixed';
+      fixBlack.title = '\u4ece\u9ed1\u540d\u5355\u79fb\u9664\u300c' + conflictInfo.blacklistValue + '\u300d';
+      fixBlack.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        config[conflictInfo.blacklistField] = (config[conflictInfo.blacklistField] || [])
+          .filter((x) => x !== conflictInfo.blacklistValue);
+        saveConfig(config);
+        rescanAll();
+      });
+
+      const fixWhite = document.createElement('span');
+      fixWhite.className = 'ztf-banner-fix';
+      fixWhite.textContent = '\u767d\u540d\u5355fixed';
+      fixWhite.title = '\u4ece\u767d\u540d\u5355\u79fb\u9664\u300c' + conflictInfo.whitelistValue + '\u300d';
+      fixWhite.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        config[conflictInfo.whitelistField] = (config[conflictInfo.whitelistField] || [])
+          .filter((x) => x !== conflictInfo.whitelistValue);
+        saveConfig(config);
+        rescanAll();
+      });
+
+      banner.appendChild(fixBlack);
+      banner.appendChild(fixWhite);
+    }
+
     banner.appendChild(dot);
 
     banner.addEventListener('click', (e) => {
-      if (e.target === dot) return;
+      if (e.target === dot || e.target.classList.contains('ztf-banner-fix')) return;
       e.stopPropagation();
       e.preventDefault();
       let nowCollapsed = false;
@@ -474,9 +518,7 @@
         }
       }
       closeDotMenu();
-      document.querySelectorAll('[data-ztf-dot], [data-ztf-status]').forEach((el) => resetCardAll(el));
-      stats.blocked = 0; stats.passed = 0; stats.passedTech = 0;
-      scanCards();
+      rescanAll();
     });
 
 
@@ -521,7 +563,7 @@
 
       const result = classifyArticle(info);
       if (!result.isTech) {
-        blockCard(card, info, result.conflict);
+        blockCard(card, info, result.conflict, result.conflictInfo, result.reason);
       } else {
         injectDotUnblocked(card, info);
         stats.passed++;
@@ -530,6 +572,12 @@
       }
     }
     updateStatsDisplay();
+  }
+
+  function rescanAll() {
+    document.querySelectorAll('[data-ztf-dot], [data-ztf-status]').forEach((el) => resetCardAll(el));
+    stats.blocked = 0; stats.passed = 0; stats.passedTech = 0;
+    scanCards();
   }
 
   let scanTimer = null;
