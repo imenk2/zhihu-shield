@@ -2,7 +2,7 @@
 // @name         zh文章屏蔽器
 // @name:en      Zhihu Article Shield
 // @namespace    https://github.com/imenk2/zhihu-shield
-// @version      0.0.16
+// @version      0.0.17
 // @description  自动屏蔽zh推荐/热榜/专栏/圈子非技术类文章，支持作者/关键词/标题黑白名单过滤，冲突黄色折叠栏一键消冲突
 // @author       imenk2
 // @match        https://www.zhihu.com/*
@@ -353,6 +353,13 @@
       '.ztf-fab{position:fixed;z-index:99996;width:40px;height:40px;border-radius:50%;background:#1772f6;color:#fff;border:none;cursor:pointer;font-size:20px;line-height:1;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity 0.2s;user-select:none;}',
       '.ztf-fab.show{opacity:1;pointer-events:auto;}',
       '.ztf-fab.dragging{transition:none;cursor:grabbing;}',
+      '.ztf-scan-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;}',
+      '.ztf-scan-btn{margin-left:0;}',
+      '.ztf-candidate-dialog{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:420px;max-width:92vw;max-height:70vh;background:#fff;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.2);z-index:100000;display:flex;flex-direction:column;overflow:hidden;font-family:inherit;}',
+      '.ztf-candidate-body{flex:1;overflow-y:auto;padding:10px 18px;}',
+      '.ztf-candidate-item{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f6f6f6;cursor:pointer;font-size:13px;}',
+      '.ztf-candidate-word{flex:1;color:#1a1a1a;}',
+      '.ztf-candidate-count{color:#999;font-size:12px;}',
     ].join(NEWLINE);
     document.head.appendChild(style);
   }
@@ -630,6 +637,107 @@
     }
   }
 
+  const NON_TECH_SEEDS = [
+    '怎么评价', '怎么看待', '怎么说', '怎么做', '怎么想', '怎样才能', '怎么会', '为什么', '为何', '凭什么',
+    '如何评价', '如何看待', '如何才能', '如何让', '如何能',
+    '怎样评价', '怎样看待', '怎样影响', '怎样才能', '怎样让', '怎样能',
+    '敢不敢', '要不要', '会不会', '能不能', '有没有', '是不是', '是否', '能否', '可否',
+    '你这一生', '你曾经', '你觉得', '你认为', '你怎么', '你如何', '你为什么', '你有没有', '你会', '你能', '你敢',
+    '如果说', '假如', '要是', '如果',
+    '看一看', '试一试', '想一想', '说一说', '听一听', '走一走',
+    '看看', '试试', '想想', '说说', '听听', '走走', '瞧瞧',
+    '一生', '曾经', '影响', '看法', '感受', '体验', '经历', '人生', '故事', '回忆',
+  ];
+
+  function extractNonTechCandidates() {
+    const rawCards = querySelectorAllAny(document, SELECTORS.cards);
+    const cards = rawCards.filter((card) => {
+      return !rawCards.some((parent) => parent !== card && parent.contains(card));
+    });
+    const counts = new Map();
+    for (const card of cards) {
+      const info = extractArticleInfo(card);
+      if (!info || !info.title) continue;
+      const title = info.title;
+      for (const seed of NON_TECH_SEEDS) {
+        if (title.includes(seed)) {
+          counts.set(seed, (counts.get(seed) || 0) + 1);
+        }
+      }
+      if (title.includes('？') || title.includes('?')) {
+        counts.set('？', (counts.get('？') || 0) + 1);
+      }
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([word, count]) => ({ word, count }));
+  }
+
+  function openCandidateDialog(textarea) {
+    injectStyles();
+    const candidates = extractNonTechCandidates();
+    if (candidates.length === 0) {
+      window.alert('当前页面未扫描到疑似非技术类关键词（请在知乎首页/热榜等页面打开配置）');
+      return;
+    }
+    if (document.getElementById('ztf-candidate-dialog')) return;
+
+    const mask = document.createElement('div');
+    mask.className = 'ztf-panel-mask';
+    mask.id = 'ztf-candidate-mask';
+
+    const dialog = document.createElement('div');
+    dialog.className = 'ztf-candidate-dialog';
+    dialog.id = 'ztf-candidate-dialog';
+
+    dialog.innerHTML =
+      '<div class="ztf-panel-header">' +
+        '<span class="ztf-panel-title">扫描结果 — 勾选加入关键词黑名单</span>' +
+        '<button class="ztf-panel-close" id="ztf-cand-close">\u00d7</button>' +
+      '</div>' +
+      '<div class="ztf-candidate-body" id="ztf-cand-body"></div>' +
+      '<div class="ztf-panel-footer">' +
+        '<span class="ztf-stats">共 ' + candidates.length + ' 个候选词</span>' +
+        '<div>' +
+          '<button class="ztf-btn" id="ztf-cand-cancel">\u53d6\u6d88</button>' +
+          '<button class="ztf-btn ztf-btn-primary" id="ztf-cand-add">\u52a0\u5165\u9ed1\u540d\u5355</button>' +
+        '</div>' +
+      '</div>';
+
+    const closeCandidateDialog = () => { mask.remove(); dialog.remove(); };
+    mask.addEventListener('click', closeCandidateDialog);
+    document.body.appendChild(mask);
+    document.body.appendChild(dialog);
+
+    const body = dialog.querySelector('#ztf-cand-body');
+    for (const c of candidates) {
+      const item = document.createElement('label');
+      item.className = 'ztf-candidate-item';
+      item.innerHTML =
+        '<input type="checkbox" value="' + escapeHtml(c.word) + '">' +
+        '<span class="ztf-candidate-word">' + escapeHtml(c.word) + '</span>' +
+        '<span class="ztf-candidate-count">\u00d7' + c.count + '</span>';
+      body.appendChild(item);
+    }
+
+    dialog.querySelector('#ztf-cand-close').addEventListener('click', closeCandidateDialog);
+    dialog.querySelector('#ztf-cand-cancel').addEventListener('click', closeCandidateDialog);
+    dialog.querySelector('#ztf-cand-add').addEventListener('click', () => {
+      const checked = dialog.querySelectorAll('input[type="checkbox"]:checked');
+      if (checked.length === 0) { closeCandidateDialog(); return; }
+      const existing = textarea.value.split(NEWLINE).map((s) => s.trim()).filter((s) => s.length > 0);
+      const set = new Set(existing);
+      let added = 0;
+      checked.forEach((cb) => {
+        const w = cb.value;
+        if (!set.has(w)) { set.add(w); added++; }
+      });
+      textarea.value = Array.from(set).join(NEWLINE);
+      closeCandidateDialog();
+      if (added > 0) window.alert('\u5df2\u52a0\u5165 ' + added + ' \u4e2a\u5173\u952e\u8bcd\u5230\u9ed1\u540d\u5355\uff08\u9700\u70b9\u51fb\u201c\u4fdd\u5b58\u201d\u751f\u6548\uff09');
+    });
+  }
+
   function openConfigPanel() {
     injectStyles();
     if (document.getElementById('ztf-panel')) return;
@@ -710,6 +818,9 @@
         const value = config[t.id] || [];
         div.innerHTML =
           '<label class="ztf-field-label">' + t.label + '\uff08\u6bcf\u884c\u4e00\u4e2a\uff0c\u7a7a\u884c\u5ffd\u7565\uff09</label>' +
+          (t.id === 'nonTechKeywords'
+            ? '<div class="ztf-scan-row"><button class="ztf-btn ztf-btn-primary ztf-scan-btn" id="ztf-scan-nontech">\u626b\u63cf\u5f53\u524d\u6587\u7ae0\u7591\u4f3c\u975e\u6280\u672f\u8bcd</button><span class="ztf-hint">\u4ece\u5f53\u524d\u9875\u9762\u6587\u7ae0\u6807\u9898\u63d0\u53d6\u8be2\u95ee\u5f0f/\u60c5\u611f\u5f0f\u7b49\u7591\u4f3c\u975e\u6280\u672f\u5173\u952e\u8bcd\uff0c\u52fe\u9009\u52a0\u5165\u9ed1\u540d\u5355</span></div>'
+            : '') +
           '<textarea class="ztf-textarea" data-field="' + t.id + '">' +
             escapeHtml(value.join(NEWLINE)) +
           '</textarea>' +
@@ -735,6 +846,14 @@
         c.classList.toggle('active', c.dataset.content === btn.dataset.tab);
       });
     });
+
+    const scanBtn = panel.querySelector('#ztf-scan-nontech');
+    if (scanBtn) {
+      scanBtn.addEventListener('click', () => {
+        const ta = panel.querySelector('textarea[data-field="nonTechKeywords"]');
+        openCandidateDialog(ta);
+      });
+    }
 
     const debugToggle = panel.querySelector('#ztf-debug-toggle');
     if (debugToggle) {
