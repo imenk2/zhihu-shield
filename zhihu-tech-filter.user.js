@@ -2,7 +2,7 @@
 // @name         zh文章屏蔽器
 // @name:en      Zhihu Article Shield
 // @namespace    https://github.com/imenk2/zhihu-shield
-// @version      0.0.30
+// @version      0.0.31
 // @description  自动屏蔽zh推荐/热榜/专栏/圈子非技术类文章，支持作者/关键词/标题黑白名单过滤，冲突黄色折叠栏一键消冲突
 // @author       imenk2
 // @match        https://www.zhihu.com/*
@@ -843,7 +843,7 @@
         onDone && onDone({ ok: false, error: prevError || 'network' });
         return;
       }
-      const url = REMOTE_RULES_URLS[idx++];
+      const url = REMOTE_RULES_URLS[idx++] + '?_=' + Date.now();
       try {
         GM_xmlhttpRequest({
           method: 'GET',
