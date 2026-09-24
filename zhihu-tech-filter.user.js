@@ -2,7 +2,7 @@
 // @name         zh文章屏蔽器
 // @name:en      Zhihu Article Shield
 // @namespace    https://github.com/imenk2/zhihu-shield
-// @version      0.0.23
+// @version      0.0.24
 // @description  自动屏蔽zh推荐/热榜/专栏/圈子非技术类文章，支持作者/关键词/标题黑白名单过滤，冲突黄色折叠栏一键消冲突
 // @author       imenk2
 // @match        https://www.zhihu.com/*
@@ -11,6 +11,7 @@
 // @grant        GM_setValue
 // @grant        GM_registerMenuCommand
 // @grant        GM_xmlhttpRequest
+// @connect      cdn.jsdelivr.net
 // @connect      raw.githubusercontent.com
 // @connect      github.com
 // @run-at       document-idle
@@ -28,7 +29,10 @@
   const MAX_TITLE_DISPLAY = 18;
   const CONFIG_KEY = 'ztf_config_v2';
   const NEWLINE = String.fromCharCode(10);
-  const REMOTE_RULES_URL = 'https://raw.githubusercontent.com/imenk2/zhihu-shield/main/rules.json';
+  const REMOTE_RULES_URLS = [
+    'https://cdn.jsdelivr.net/gh/imenk2/zhihu-shield@main/rules.json',
+    'https://raw.githubusercontent.com/imenk2/zhihu-shield/main/rules.json',
+  ];
   const REMOTE_RULES_KEY = 'ztf_remote_rules_meta';
   const REMOTE_SYNC_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
@@ -868,27 +872,36 @@
   const REMOTE_RULE_FIELDS = ['techKeywords', 'nonTechKeywords', 'techAuthors', 'nonTechAuthors'];
 
   function fetchRemoteRules(onDone) {
-    try {
-      GM_xmlhttpRequest({
-        method: 'GET',
-        url: REMOTE_RULES_URL,
-        timeout: 8000,
-        onload: (resp) => {
-          if (resp.status >= 200 && resp.status < 300) {
-            try {
-              const rules = JSON.parse(resp.responseText);
-              onDone && onDone({ ok: true, rules });
-              return;
-            } catch (e) { /* parse error */ }
-          }
-          onDone && onDone({ ok: false, error: 'HTTP ' + resp.status });
-        },
-        onerror: () => { onDone && onDone({ ok: false, error: 'network' }); },
-        ontimeout: () => { onDone && onDone({ ok: false, error: 'timeout' }); },
-      });
-    } catch (e) {
-      onDone && onDone({ ok: false, error: 'GM_xmlhttpRequest unavailable' });
+    let idx = 0;
+    function tryNext(prevError) {
+      if (idx >= REMOTE_RULES_URLS.length) {
+        onDone && onDone({ ok: false, error: prevError || 'network' });
+        return;
+      }
+      const url = REMOTE_RULES_URLS[idx++];
+      try {
+        GM_xmlhttpRequest({
+          method: 'GET',
+          url: url,
+          timeout: 8000,
+          onload: (resp) => {
+            if (resp.status >= 200 && resp.status < 300) {
+              try {
+                const rules = JSON.parse(resp.responseText);
+                onDone && onDone({ ok: true, rules });
+                return;
+              } catch (e) { /* parse error, try next */ }
+            }
+            tryNext('HTTP ' + resp.status);
+          },
+          onerror: () => { tryNext('network'); },
+          ontimeout: () => { tryNext('timeout'); },
+        });
+      } catch (e) {
+        tryNext('GM_xmlhttpRequest unavailable');
+      }
     }
+    tryNext(null);
   }
 
   function mergeRemoteRules(rules) {
