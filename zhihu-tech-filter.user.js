@@ -2,7 +2,7 @@
 // @name         zh文章屏蔽器
 // @name:en      Zhihu Article Shield
 // @namespace    https://github.com/imenk2/zhihu-shield
-// @version      0.0.28
+// @version      0.0.29
 // @description  自动屏蔽zh推荐/热榜/专栏/圈子非技术类文章，支持作者/关键词/标题黑白名单过滤，冲突黄色折叠栏一键消冲突
 // @author       imenk2
 // @match        https://www.zhihu.com/*
@@ -527,6 +527,7 @@
           }
         }
       } else if (action === 'removeKw') {
+        const result = classifyArticle(info);
         const text = ((info.title || '') + ' ' + (info.summary || ''));
         const hits = (config.nonTechKeywords || []).filter((k) => k && text.includes(k));
         let promptMsg = '输入要移除的屏蔽关键词：';
@@ -534,6 +535,8 @@
         if (hits.length > 0) {
           promptMsg = '命中: ' + hits.map((h) => h + '[' + getKwSource(h) + ']').join(', ') + '\n输入要移除的词：';
           defaultVal = hits[0];
+        } else if (!result.isTech) {
+          promptMsg = '本文由「' + result.reason + '」屏蔽\n输入要移除的屏蔽关键词：';
         }
         const kw = window.prompt(promptMsg, defaultVal);
         if (kw && kw.trim()) {
