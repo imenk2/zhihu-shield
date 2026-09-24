@@ -2,7 +2,7 @@
 // @name         zh文章屏蔽器
 // @name:en      Zhihu Article Shield
 // @namespace    https://github.com/imenk2/zhihu-shield
-// @version      0.0.25
+// @version      0.0.26
 // @description  自动屏蔽zh推荐/热榜/专栏/圈子非技术类文章，支持作者/关键词/标题黑白名单过滤，冲突黄色折叠栏一键消冲突
 // @author       imenk2
 // @match        https://www.zhihu.com/*
@@ -690,6 +690,7 @@
     /看看/g, /试试/g, /想想/g, /说说/g, /听听/g, /走走/g, /瞧瞧/g, /聊聊/g,
     /一生/g, /曾经/g, /影响/g, /看法/g, /感受/g, /体验/g, /经历/g, /人生/g, /故事/g, /回忆/g,
     /感悟/g, /心得/g, /体会/g, /教训/g, /遗憾/g, /后悔/g,
+    /喜欢/g, /难绷/g, /绷不住/g, /破防/g, /emo/g,
   ];
 
   function buildGuidesFromDefs(defs) {
