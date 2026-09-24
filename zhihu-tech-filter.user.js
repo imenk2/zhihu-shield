@@ -2,7 +2,7 @@
 // @name         zh文章屏蔽器
 // @name:en      Zhihu Article Shield
 // @namespace    https://github.com/imenk2/zhihu-shield
-// @version      0.0.17
+// @version      0.0.19
 // @description  自动屏蔽zh推荐/热榜/专栏/圈子非技术类文章，支持作者/关键词/标题黑白名单过滤，冲突黄色折叠栏一键消冲突
 // @author       imenk2
 // @match        https://www.zhihu.com/*
@@ -10,6 +10,9 @@
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_registerMenuCommand
+// @grant        GM_xmlhttpRequest
+// @connect      raw.githubusercontent.com
+// @connect      github.com
 // @run-at       document-idle
 // @icon         https://static.zhihu.com/heifetz/favicon.ico
 // @updateURL    https://raw.githubusercontent.com/imenk2/zhihu-shield/main/zhihu-tech-filter.user.js
@@ -25,6 +28,9 @@
   const MAX_TITLE_DISPLAY = 18;
   const CONFIG_KEY = 'ztf_config_v2';
   const NEWLINE = String.fromCharCode(10);
+  const REMOTE_RULES_URL = 'https://raw.githubusercontent.com/imenk2/zhihu-shield/main/rules.json';
+  const REMOTE_RULES_KEY = 'ztf_remote_rules_meta';
+  const REMOTE_SYNC_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
   const SELECTORS = {
     cards: [
@@ -637,16 +643,41 @@
     }
   }
 
-  const NON_TECH_SEEDS = [
-    '怎么评价', '怎么看待', '怎么说', '怎么做', '怎么想', '怎样才能', '怎么会', '为什么', '为何', '凭什么',
-    '如何评价', '如何看待', '如何才能', '如何让', '如何能',
-    '怎样评价', '怎样看待', '怎样影响', '怎样才能', '怎样让', '怎样能',
-    '敢不敢', '要不要', '会不会', '能不能', '有没有', '是不是', '是否', '能否', '可否',
-    '你这一生', '你曾经', '你觉得', '你认为', '你怎么', '你如何', '你为什么', '你有没有', '你会', '你能', '你敢',
-    '如果说', '假如', '要是', '如果',
-    '看一看', '试一试', '想一想', '说一说', '听一听', '走一走',
-    '看看', '试试', '想想', '说说', '听听', '走走', '瞧瞧',
-    '一生', '曾经', '影响', '看法', '感受', '体验', '经历', '人生', '故事', '回忆',
+  const NON_TECH_GUIDES = [
+    /怎么(?:评价|看待|说|做|想|看|回事|才能|会|了|办|用|选|知道|理解|处理|解决|避免|提高|优化|实现|设计)/g,
+    /如何(?:评价|看待|说|做|想|看|才能|让|能|用|选|知道|理解|处理|解决|避免|提高|优化|实现|设计)/g,
+    /怎样(?:评价|看待|说|做|想|看|才能|让|能|影响|用|选|知道|理解|处理|解决|避免|提高|优化|实现|设计)/g,
+    /为何(?:不|要|会|能|是|没有|有)?/g,
+    /为什么(?:不|要|会|能|是|没有|有|这么|那么)?/g,
+    /凭什么/g,
+    /难道(?:不|是|要|会|能)/g,
+    /究竟(?:是|不|要|会|能|有没有|是不是|能不能)/g,
+    /到底(?:是|不|要|会|能|有没有|是不是|能不能|想不想|要不要)/g,
+    /敢不敢/g,
+    /要不要/g,
+    /会不会/g,
+    /能不能/g,
+    /有没有/g,
+    /是不是/g,
+    /是否/g,
+    /能否/g,
+    /可否/g,
+    /值不值得/g,
+    /应不应该/g,
+    /该不该/g,
+    /你(?:这一生|曾经|觉得|认为|怎么|如何|为什么|有没有|会|能|敢|想|看|说|做|知道|理解|感受|体验|经历|看法)/g,
+    /您(?:觉得|认为|怎么看|如何|为什么|有没有|会|能|想|看|说|做)/g,
+    /大家(?:怎么看|如何|觉得|认为|有没有|是不是|会不会)/g,
+    /我们(?:该怎么|该如何|为什么|要不要|是不是)/g,
+    /如果说/g,
+    /假如(?:说|你|我|他|她|有|是|不)/g,
+    /要是(?:你|我|他|她|有|是|不|能|会)/g,
+    /如果(?:你|我|他|她|有|是|不|能|会|说)/g,
+    /万一/g,
+    /看一看/g, /试一试/g, /想一想/g, /说一说/g, /听一听/g, /走一走/g, /聊一聊/g,
+    /看看/g, /试试/g, /想想/g, /说说/g, /听听/g, /走走/g, /瞧瞧/g, /聊聊/g,
+    /一生/g, /曾经/g, /影响/g, /看法/g, /感受/g, /体验/g, /经历/g, /人生/g, /故事/g, /回忆/g,
+    /感悟/g, /心得/g, /体会/g, /教训/g, /遗憾/g, /后悔/g,
   ];
 
   function extractNonTechCandidates() {
@@ -655,17 +686,37 @@
       return !rawCards.some((parent) => parent !== card && parent.contains(card));
     });
     const counts = new Map();
+    const techKwLower = (config.techKeywords || []).map((k) => k.toLowerCase());
+
+    function addCandidate(word) {
+      const w = word.trim();
+      if (w.length === 0) return;
+      counts.set(w, (counts.get(w) || 0) + 1);
+    }
+
     for (const card of cards) {
       const info = extractArticleInfo(card);
       if (!info || !info.title) continue;
       const title = info.title;
-      for (const seed of NON_TECH_SEEDS) {
-        if (title.includes(seed)) {
-          counts.set(seed, (counts.get(seed) || 0) + 1);
+
+      for (const re of NON_TECH_GUIDES) {
+        re.lastIndex = 0;
+        let m;
+        while ((m = re.exec(title)) !== null) {
+          addCandidate(m[0]);
         }
       }
-      if (title.includes('？') || title.includes('?')) {
-        counts.set('？', (counts.get('？') || 0) + 1);
+
+      const hasQuestion = title.includes('？') || title.includes('?');
+      if (hasQuestion) {
+        const lowerTitle = title.toLowerCase();
+        const isTechTitle = techKwLower.some((k) => k && lowerTitle.includes(k));
+        if (!isTechTitle) {
+          addCandidate('？');
+          if (/吗[？?]/.test(title)) addCandidate('吗？');
+          if (/呢[？?]/.test(title)) addCandidate('呢？');
+          if (/吧[？?]/.test(title)) addCandidate('吧？');
+        }
       }
     }
     return Array.from(counts.entries())
@@ -735,6 +786,88 @@
       textarea.value = Array.from(set).join(NEWLINE);
       closeCandidateDialog();
       if (added > 0) window.alert('\u5df2\u52a0\u5165 ' + added + ' \u4e2a\u5173\u952e\u8bcd\u5230\u9ed1\u540d\u5355\uff08\u9700\u70b9\u51fb\u201c\u4fdd\u5b58\u201d\u751f\u6548\uff09');
+    });
+  }
+
+  const REMOTE_RULE_FIELDS = ['techKeywords', 'nonTechKeywords', 'techAuthors', 'nonTechAuthors', 'titleBlacklist'];
+
+  function fetchRemoteRules(onDone) {
+    try {
+      GM_xmlhttpRequest({
+        method: 'GET',
+        url: REMOTE_RULES_URL,
+        timeout: 8000,
+        onload: (resp) => {
+          if (resp.status >= 200 && resp.status < 300) {
+            try {
+              const rules = JSON.parse(resp.responseText);
+              onDone && onDone({ ok: true, rules });
+              return;
+            } catch (e) { /* parse error */ }
+          }
+          onDone && onDone({ ok: false, error: 'HTTP ' + resp.status });
+        },
+        onerror: () => { onDone && onDone({ ok: false, error: 'network' }); },
+        ontimeout: () => { onDone && onDone({ ok: false, error: 'timeout' }); },
+      });
+    } catch (e) {
+      onDone && onDone({ ok: false, error: 'GM_xmlhttpRequest unavailable' });
+    }
+  }
+
+  function mergeRemoteRules(rules) {
+    let added = 0;
+    for (const f of REMOTE_RULE_FIELDS) {
+      if (Array.isArray(rules[f])) {
+        if (!config[f]) config[f] = [];
+        for (const v of rules[f]) {
+          if (v && typeof v === 'string' && !config[f].includes(v)) {
+            config[f].push(v);
+            added++;
+          }
+        }
+      }
+    }
+    if (added > 0) saveConfig(config);
+    return added;
+  }
+
+  function maybeAutoSyncRemote() {
+    try {
+      const meta = GM_getValue(REMOTE_RULES_KEY, null);
+      const now = Date.now();
+      if (meta && typeof meta.lastSync === 'number' && now - meta.lastSync < REMOTE_SYNC_INTERVAL_MS) return;
+      fetchRemoteRules((res) => {
+        if (res.ok) {
+          const added = mergeRemoteRules(res.rules);
+          GM_setValue(REMOTE_RULES_KEY, { lastSync: now, version: res.rules.version || null });
+          if (added > 0) rescanAll();
+        } else {
+          GM_setValue(REMOTE_RULES_KEY, { lastSync: now, error: res.error });
+        }
+      });
+    } catch (e) { /* ignore */ }
+  }
+
+  function syncRemoteRulesManual(statusEl, btn) {
+    const restoreBtn = () => { if (btn) { btn.disabled = false; btn.textContent = '\u7acb\u5373\u540c\u6b65'; } };
+    if (btn) { btn.disabled = true; btn.textContent = '\u540c\u6b65\u4e2d...'; }
+    fetchRemoteRules((res) => {
+      if (res.ok) {
+        const added = mergeRemoteRules(res.rules);
+        GM_setValue(REMOTE_RULES_KEY, { lastSync: Date.now(), version: res.rules.version || null });
+        if (statusEl) statusEl.textContent = '\u540c\u6b65\u6210\u529f\uff08v' + (res.rules.version || '?') + '\uff09\uff0c\u65b0\u589e ' + added + ' \u4e2a\u89c4\u5219\u3002\u70b9\u51fb\u201c\u4fdd\u5b58\u201d\u751f\u6548\u3002';
+        if (added > 0) {
+          const textareas = document.querySelectorAll('#ztf-panel textarea[data-field]');
+          textareas.forEach((ta) => {
+            const field = ta.dataset.field;
+            if (config[field]) ta.value = config[field].join(NEWLINE);
+          });
+        }
+      } else {
+        if (statusEl) statusEl.textContent = '\u540c\u6b65\u5931\u8d25\uff1a' + res.error;
+      }
+      restoreBtn();
     });
   }
 
@@ -809,6 +942,12 @@
             '<div class="ztf-settings-desc">\u653e\u884c\u7684\u6587\u7ae0\u4e5f\u4f1a\u6807\u8bb0\u547d\u4e2d\u539f\u56e0\uff0c\u4fbf\u4e8e\u6838\u5bf9\u89c4\u5219\u662f\u5426\u8bef\u6740</div></div>' +
             '<div class="ztf-toggle' + (config.debug ? ' on' : '') + '" id="ztf-debug-toggle"></div>' +
           '</div>' +
+          '<div class="ztf-settings-row">' +
+            '<div><div class="ztf-settings-label">\u8fdc\u7a0b\u89c4\u5219\u540c\u6b65</div>' +
+            '<div class="ztf-settings-desc">\u4ece GitHub \u62c9\u53d6\u6700\u65b0\u5c4f\u853d\u89c4\u5219\u5e76\u5408\u5e76\u5230\u672c\u5730\uff08\u53bb\u91cd\uff0c\u4fdd\u7559\u672c\u5730\u81ea\u5b9a\u4e49\uff09</div></div>' +
+            '<button class="ztf-btn ztf-btn-primary" id="ztf-sync-remote">\u7acb\u5373\u540c\u6b65</button>' +
+          '</div>' +
+          '<div class="ztf-settings-row"><div><div class="ztf-settings-label" id="ztf-remote-status" style="color:#8590a6;font-weight:normal;"></div></div></div>' +
           '<p class="ztf-hint">' +
             '判定优先级：标题黑名单 > 作者黑名单 > 作者白名单 > 关键词白名单 > 关键词黑名单 > 默认行为。<br>' +
             '白名单优先于黑名单，避免「游戏编程」这类含非技术词的技术文章被误杀。<br>' +
@@ -859,6 +998,14 @@
     if (debugToggle) {
       debugToggle.addEventListener('click', () => {
         debugToggle.classList.toggle('on');
+      });
+    }
+
+    const syncRemoteBtn = panel.querySelector('#ztf-sync-remote');
+    if (syncRemoteBtn) {
+      syncRemoteBtn.addEventListener('click', () => {
+        const statusEl = panel.querySelector('#ztf-remote-status');
+        syncRemoteRulesManual(statusEl, syncRemoteBtn);
       });
     }
 
@@ -1001,6 +1148,8 @@
       startInterval();
     }
 
+    maybeAutoSyncRemote();
+
     try {
       GM_registerMenuCommand('\u914d\u7f6e\u8fc7\u6ee4\u89c4\u5219', openConfigPanel);
       GM_registerMenuCommand('\u7acb\u5373\u91cd\u65b0\u626b\u63cf', () => {
@@ -1011,6 +1160,18 @@
       GM_registerMenuCommand('\u5207\u6362\u8c03\u8bd5\u6a21\u5f0f', () => {
         config.debug = !config.debug;
         saveConfig(config);
+      });
+      GM_registerMenuCommand('\u540c\u6b65\u8fdc\u7a0b\u89c4\u5219', () => {
+        fetchRemoteRules((res) => {
+          if (res.ok) {
+            const added = mergeRemoteRules(res.rules);
+            GM_setValue(REMOTE_RULES_KEY, { lastSync: Date.now(), version: res.rules.version || null });
+            window.alert('\u540c\u6b65\u6210\u529f\uff0c\u65b0\u589e ' + added + ' \u4e2a\u89c4\u5219');
+            rescanAll();
+          } else {
+            window.alert('\u540c\u6b65\u5931\u8d25\uff1a' + res.error);
+          }
+        });
       });
     } catch (e) { /* GM_registerMenuCommand unavailable */ }
   }
