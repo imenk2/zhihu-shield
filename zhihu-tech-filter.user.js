@@ -2,7 +2,7 @@
 // @name         zh文章屏蔽器
 // @name:en      Zhihu Article Shield
 // @namespace    https://github.com/imenk2/zhihu-shield
-// @version      0.0.19
+// @version      0.0.20
 // @description  自动屏蔽zh推荐/热榜/专栏/圈子非技术类文章，支持作者/关键词/标题黑白名单过滤，冲突黄色折叠栏一键消冲突
 // @author       imenk2
 // @match        https://www.zhihu.com/*
@@ -81,7 +81,7 @@
   };
 
   const DEFAULT_CONFIG = {
-    titleBlacklist: [],
+
     techKeywords: [
       '编程', '代码', '算法', '数据结构', '前端', '后端', '全栈', '程序员', '开发者', '开发',
       'JavaScript', 'TypeScript', 'Python', 'Java', 'Go', 'Rust', 'C++', 'C#', 'Kotlin', 'Swift',
@@ -224,13 +224,6 @@
     const { title, summary, author } = info;
     const text = (title ? title + ' ' : '') + summary;
 
-    if (title && config.titleBlacklist && config.titleBlacklist.length > 0) {
-      for (const bt of config.titleBlacklist) {
-        if (bt && title.includes(bt)) {
-          return { isTech: false, reason: '标题黑名单' };
-        }
-      }
-    }
 
     if (author && config.nonTechAuthors && config.nonTechAuthors.length > 0) {
       for (const a of config.nonTechAuthors) {
@@ -789,7 +782,7 @@
     });
   }
 
-  const REMOTE_RULE_FIELDS = ['techKeywords', 'nonTechKeywords', 'techAuthors', 'nonTechAuthors', 'titleBlacklist'];
+  const REMOTE_RULE_FIELDS = ['techKeywords', 'nonTechKeywords', 'techAuthors', 'nonTechAuthors'];
 
   function fetchRemoteRules(onDone) {
     try {
@@ -888,7 +881,7 @@
       { id: 'nonTechKeywords', label: '关键词黑名单' },
       { id: 'techAuthors', label: '作者白名单' },
       { id: 'nonTechAuthors', label: '作者黑名单' },
-      { id: 'titleBlacklist', label: '标题黑名单' },
+
       { id: 'settings', label: '设置' },
     ];
 
@@ -949,7 +942,7 @@
           '</div>' +
           '<div class="ztf-settings-row"><div><div class="ztf-settings-label" id="ztf-remote-status" style="color:#8590a6;font-weight:normal;"></div></div></div>' +
           '<p class="ztf-hint">' +
-            '判定优先级：标题黑名单 > 作者黑名单 > 作者白名单 > 关键词白名单 > 关键词黑名单 > 默认行为。<br>' +
+            '判定优先级：作者黑名单 > 作者白名单 > 关键词白名单 > 关键词黑名单 > 默认行为。<br>' +
             '白名单优先于黑名单，避免「游戏编程」这类含非技术词的技术文章被误杀。<br>' +
             '匹配方式为子串包含（模糊匹配），关键词不区分大小写。' +
           '</p>';
@@ -963,9 +956,7 @@
           '<textarea class="ztf-textarea" data-field="' + t.id + '">' +
             escapeHtml(value.join(NEWLINE)) +
           '</textarea>' +
-          (t.id === 'titleBlacklist'
-            ? '<p class="ztf-hint">标题模糊屏蔽词（子串包含即屏蔽），每行一个。可用于快速屏蔽特定标题模式。</p>'
-            : '') +
+
           (t.id === 'techAuthors'
             ? '<p class="ztf-hint">填写知乎用户名（主页显示的昵称），精确或包含匹配均可。命中则放行。</p>'
             : '') +
