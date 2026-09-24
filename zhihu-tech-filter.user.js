@@ -2,7 +2,7 @@
 // @name         zh文章屏蔽器
 // @name:en      Zhihu Article Shield
 // @namespace    https://github.com/imenk2/zhihu-shield
-// @version      0.0.26
+// @version      0.0.27
 // @description  自动屏蔽zh推荐/热榜/专栏/圈子非技术类文章，支持作者/关键词/标题黑白名单过滤，冲突黄色折叠栏一键消冲突
 // @author       imenk2
 // @match        https://www.zhihu.com/*
@@ -306,29 +306,29 @@
     const style = document.createElement('style');
     style.id = 'ztf-styles';
     style.textContent = [
-      '.ztf-banner{display:flex;align-items:center;gap:6px;padding:3px 12px;background:#f6f6f6;border:1px solid #ebeced;border-left:3px solid #8590a6;border-radius:4px;margin:0 0 4px !important;cursor:pointer;font-size:12px;color:#646464;box-sizing:border-box;position:relative;width:100%;}',
-      '.ztf-banner:hover{background:#ececec;}',
-      '.ztf-banner-icon{color:#8590a6;font-size:13px;font-weight:bold;flex-shrink:0;}',
+      '.ztf-banner{display:flex;align-items:center;gap:6px;padding:2px 10px;background:#fafafa;border:1px solid #f0f0f0;border-left:2px solid #d0d0d0;border-radius:3px;margin:0 0 4px !important;cursor:pointer;font-size:11px;color:#aaa;box-sizing:border-box;position:relative;width:100%;}',
+      '.ztf-banner:hover{background:#f5f5f5;}',
+      '.ztf-banner-icon{color:#bbb;font-size:11px;font-weight:bold;flex-shrink:0;}',
       '.ztf-banner-text{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}',
-      '.ztf-banner-action{color:#1772f6;flex-shrink:0;}',
-      '.ztf-banner.ztf-banner-conflict{border-left-color:#d4a72c;background:#fff8e1;}',
-      '.ztf-banner.ztf-banner-conflict:hover{background:#fff3cd;}',
-      '.ztf-banner.ztf-banner-conflict .ztf-banner-icon{color:#d4a72c;}',
-      '.ztf-banner.ztf-banner-conflict .ztf-banner-text{color:#6b5d20;}',
-      '.ztf-banner-fix{color:#1a1a1a;background:#ffd54f;border:1px solid #d4a72c;border-radius:3px;padding:1px 6px;font-size:11px;cursor:pointer;flex-shrink:0;user-select:none;}',
-      '.ztf-banner-fix:hover{background:#ffca28;}',
-      '.ztf-banner-dot{color:#8590a6;font-size:16px;font-weight:bold;line-height:1;padding:2px 6px;border-radius:3px;cursor:pointer;flex-shrink:0;user-select:none;}',
-      '.ztf-banner-dot:hover{color:#1a1a1a;background:rgba(0,0,0,0.06);}',
-      'html[data-ztf-theme="dark"] .ztf-banner{background:#3a3a3c;border-color:#5a5a5c;color:#d8d8d8;}',
-      'html[data-ztf-theme="dark"] .ztf-banner:hover{background:#48484a;}',
-      'html[data-ztf-theme="dark"] .ztf-banner-icon{color:#b0b0b0;}',
-      'html[data-ztf-theme="dark"] .ztf-banner-action{color:#7ab7ff;}',
-      'html[data-ztf-theme="dark"] .ztf-banner.ztf-banner-conflict{background:#6b5d20;}',
-      'html[data-ztf-theme="dark"] .ztf-banner.ztf-banner-conflict:hover{background:#7d6e26;}',
-      'html[data-ztf-theme="dark"] .ztf-banner.ztf-banner-conflict .ztf-banner-icon{color:#ffd54f;}',
-      'html[data-ztf-theme="dark"] .ztf-banner.ztf-banner-conflict .ztf-banner-text{color:#ffe9a8;}',
-      'html[data-ztf-theme="dark"] .ztf-banner-dot{color:#b0b0b0;}',
-      'html[data-ztf-theme="dark"] .ztf-banner-dot:hover{color:#fff;background:rgba(255,255,255,0.15);}',
+      '.ztf-banner-action{color:#bbb;flex-shrink:0;}',
+      '.ztf-banner.ztf-banner-conflict{border-left-color:#b8901c;background:#e8dcb0;}',
+      '.ztf-banner.ztf-banner-conflict:hover{background:#e0d4a0;}',
+      '.ztf-banner.ztf-banner-conflict .ztf-banner-icon{color:#a08020;}',
+      '.ztf-banner.ztf-banner-conflict .ztf-banner-text{color:#7a6a28;}',
+      '.ztf-banner-fix{color:#fff;background:#a08020;border:1px solid #8a6f1a;border-radius:3px;padding:1px 6px;font-size:10px;cursor:pointer;flex-shrink:0;user-select:none;}',
+      '.ztf-banner-fix:hover{background:#8a6f1a;}',
+      '.ztf-banner-dot{color:#bbb;font-size:14px;font-weight:bold;line-height:1;padding:2px 5px;border-radius:3px;cursor:pointer;flex-shrink:0;user-select:none;}',
+      '.ztf-banner-dot:hover{color:#666;background:rgba(0,0,0,0.04);}',
+      'html[data-ztf-theme="dark"] .ztf-banner{background:#2e2e30;border-color:#444;border-left-color:#555;color:#777;}',
+      'html[data-ztf-theme="dark"] .ztf-banner:hover{background:#38383a;}',
+      'html[data-ztf-theme="dark"] .ztf-banner-icon{color:#777;}',
+      'html[data-ztf-theme="dark"] .ztf-banner-action{color:#777;}',
+      'html[data-ztf-theme="dark"] .ztf-banner.ztf-banner-conflict{background:#4a4020;border-left-color:#8a6f1a;}',
+      'html[data-ztf-theme="dark"] .ztf-banner.ztf-banner-conflict:hover{background:#544826;}',
+      'html[data-ztf-theme="dark"] .ztf-banner.ztf-banner-conflict .ztf-banner-icon{color:#b8901c;}',
+      'html[data-ztf-theme="dark"] .ztf-banner.ztf-banner-conflict .ztf-banner-text{color:#c8b870;}',
+      'html[data-ztf-theme="dark"] .ztf-banner-dot{color:#777;}',
+      'html[data-ztf-theme="dark"] .ztf-banner-dot:hover{color:#ccc;background:rgba(255,255,255,0.08);}',
       '.ztf-collapsed{display:none !important;}',
       '[data-ztf-status="blocked"]{margin-top:0 !important;margin-bottom:6px !important;padding-top:0 !important;padding-bottom:0 !important;}',
       '.ztf-pass-mark{position:absolute;top:4px;right:28px;font-size:11px;color:#67c23a;background:#f0f9eb;padding:1px 6px;border-radius:8px;z-index:5;pointer-events:none;}',
