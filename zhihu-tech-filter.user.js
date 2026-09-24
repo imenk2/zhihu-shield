@@ -2,8 +2,8 @@
 // @name         zh文章屏蔽器
 // @name:en      Zhihu Article Shield
 // @namespace    https://github.com/imenk2/zhihu-shield
-// @version      0.0.6
-// @description  自动屏蔽zh推荐栏非技术类文章，支持话题/作者/关键词/标题多维度黑白名单过滤，标题前圆点快速加黑名单
+// @version      0.0.16
+// @description  自动屏蔽zh推荐/热榜/专栏/圈子非技术类文章，支持作者/关键词/标题黑白名单过滤，冲突黄色折叠栏一键消冲突
 // @author       imenk2
 // @match        https://www.zhihu.com/*
 // @match        https://zhihu.com/*
@@ -22,8 +22,8 @@
   const SCAN_DEBOUNCE_MS = 200;
   const SCAN_INTERVAL_MS = 2000;
   const MAX_SUMMARY_LENGTH = 300;
-  const MAX_TITLE_DISPLAY = 15;
-  const CONFIG_KEY = 'ztf_config_v1';
+  const MAX_TITLE_DISPLAY = 18;
+  const CONFIG_KEY = 'ztf_config_v2';
   const NEWLINE = String.fromCharCode(10);
 
   const SELECTORS = {
@@ -33,10 +33,18 @@
       'div[class*="TopstoryItem"]',
       '.List-item',
       'div[class*="Feed"] div[class*="Card"]',
+      'section.HotItem',
+      '.HotItem',
+      '.subscrib-card',
+      '.hot-column .card',
     ],
     title: [
       '.ContentItem-title',
       'h2.ContentItem-title',
+      '.HotItem-title',
+      '.content-title',
+      '.subscrib-card .title',
+      '.hot-column .title',
       'h2',
       '[itemprop="headline"]',
       '.RichContent .ContentItem-title',
@@ -44,19 +52,25 @@
     author: [
       '.AuthorInfo-name',
       '.UserLink-link',
-      'meta[itemprop="author"]',
+      '.author-name',
+      '.hot-column .name',
+      '.AuthorInfo meta[itemprop="name"]',
     ],
     summary: [
+      '.HotItem-excerpt',
+      '.article-text',
+      '.column-des-text',
       '.RichContent-inner',
       '.CopyrightRichText-richText',
       '.RichText',
       '.ContentItem-summary',
     ],
-
     content: [
       '.ContentItem-content',
       '.RichContent',
       '.ContentItem',
+      '.card-content',
+      '.HotItem-content',
     ],
   };
 
@@ -87,7 +101,7 @@
       '养生', '健康', '中医', '西医', '减肥', '健身', '食疗', '保健品', '长寿',
       '美妆', '护肤', '穿搭', '时尚', '奢侈品', '口红', '粉底',
       '美食', '菜谱', '旅游', '旅行', '攻略', '摄影', '宠物', '猫', '狗',
-      '游戏', '动漫', '漫画', '动画', '小说', '网文', '番剧', 'cosplay',
+      '动漫', '漫画', '动画', '小说', '网文', '番剧', 'cosplay',
       '历史', '哲学', '文学', '艺术', '诗歌', '散文',
       '心理', '抑郁', '焦虑', '心理咨询', '原生家庭',
       '育儿', '亲子', '教育', '高考', '考研', '留学', '雅思', '托福', '四六级',
@@ -98,7 +112,6 @@
     ],
     techAuthors: [],
     nonTechAuthors: [],
-
     defaultAction: 'pass',
     debug: false,
   };
@@ -161,6 +174,7 @@
   function extractArticleInfo(card) {
     let title = '';
     let author = '';
+    let itemType = '';
 
     const zopEl = card.hasAttribute('data-zop') ? card : card.querySelector('[data-zop]');
     const zopRaw = zopEl ? zopEl.getAttribute('data-zop') : null;
@@ -169,6 +183,7 @@
         const zop = JSON.parse(zopRaw);
         if (zop && typeof zop.title === 'string') title = zop.title.trim();
         if (zop && typeof zop.authorName === 'string') author = zop.authorName.trim();
+        if (zop && typeof zop.type === 'string') itemType = zop.type.trim();
       } catch (e) { /* ignore */ }
     }
 
@@ -192,12 +207,16 @@
     }
 
     if (!title && !summary) return null;
-    return { title, author, summary };
+
+    // 对想法/圈子等无标题卡片，生成备用展示名
+    const displayTitle = title || (summary ? summary.replace(/\s+/g, ' ').slice(0, 30) : '动态内容');
+
+    return { title, displayTitle, author, summary, type: itemType };
   }
 
   function classifyArticle(info) {
     const { title, summary, author } = info;
-    const text = title + ' ' + summary;
+    const text = (title ? title + ' ' : '') + summary;
 
     if (title && config.titleBlacklist && config.titleBlacklist.length > 0) {
       for (const bt of config.titleBlacklist) {
@@ -215,7 +234,7 @@
       }
     }
 
-    if (author && config.techAuthors.length > 0) {
+    if (author && config.techAuthors && config.techAuthors.length > 0) {
       let techAuthorHit = false;
       for (const a of config.techAuthors) {
         if (a && (author === a || author.includes(a) || a.includes(author))) { techAuthorHit = true; break; }
@@ -225,7 +244,7 @@
           if (kw && text.includes(kw)) {
             return {
               isTech: false,
-              reason: '冲突: 作者白名单「' + author + '」vs 非技术关键词「' + kw + '」',
+              reason: '【作者冲突】作者白名单「' + author + '」vs 关键词黑名单「' + kw + '」',
               conflict: true,
               conflictInfo: { whitelistField: 'techAuthors', whitelistValue: author, blacklistField: 'nonTechKeywords', blacklistValue: kw },
             };
@@ -245,7 +264,7 @@
         if (kw && text.includes(kw)) {
           return {
             isTech: false,
-            reason: '冲突: 技术关键词「' + techKwHit + '」vs 非技术关键词「' + kw + '」',
+            reason: '【关键词冲突】技术关键词「' + techKwHit + '」vs 非技术关键词「' + kw + '」',
             conflict: true,
             conflictInfo: { whitelistField: 'techKeywords', whitelistValue: techKwHit, blacklistField: 'nonTechKeywords', blacklistValue: kw },
           };
@@ -279,25 +298,24 @@
     const style = document.createElement('style');
     style.id = 'ztf-styles';
     style.textContent = [
-      '.ztf-banner{display:flex;align-items:center;gap:8px;padding:4px 10px;background:#3a3a3c;border:1px solid #5a5a5c;border-radius:4px;margin:0 0 4px !important;cursor:pointer;font-size:12px;color:#d8d8d8;box-sizing:border-box;position:relative;}',
+      '.ztf-banner{display:flex;align-items:center;gap:8px;padding:6px 12px;background:#3a3a3c;border:1px solid #5a5a5c;border-left:3px solid #8590a6;border-radius:4px;margin:0 0 6px !important;cursor:pointer;font-size:12px;color:#d8d8d8;box-sizing:border-box;position:relative;width:100%;}',
       '.ztf-banner:hover{background:#48484a;}',
-      '.ztf-banner.ztf-banner-conflict{background:#6b5d20;border-color:#d4a72c;}',
+      '.ztf-banner-icon{color:#b0b0b0;font-size:13px;font-weight:bold;flex-shrink:0;}',
+      '.ztf-banner-text{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}',
+      '.ztf-banner-action{color:#7ab7ff;flex-shrink:0;}',
+      '.ztf-banner.ztf-banner-conflict{border-left-color:#d4a72c;background:#6b5d20;}',
       '.ztf-banner.ztf-banner-conflict:hover{background:#7d6e26;}',
       '.ztf-banner.ztf-banner-conflict .ztf-banner-icon{color:#ffd54f;}',
       '.ztf-banner.ztf-banner-conflict .ztf-banner-text{color:#ffe9a8;}',
       '.ztf-banner-fix{color:#1a1a1a;background:#ffd54f;border:1px solid #d4a72c;border-radius:3px;padding:1px 6px;font-size:11px;cursor:pointer;flex-shrink:0;user-select:none;}',
       '.ztf-banner-fix:hover{background:#ffca28;}',
-      '.ztf-banner-icon{color:#b0b0b0;font-size:13px;font-weight:bold;flex-shrink:0;}',
-      '.ztf-banner-text{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}',
-      '.ztf-banner-action{color:#7ab7ff;flex-shrink:0;}',
       '.ztf-banner-dot{color:#b0b0b0;font-size:16px;font-weight:bold;line-height:1;padding:2px 6px;border-radius:3px;cursor:pointer;flex-shrink:0;user-select:none;}',
       '.ztf-banner-dot:hover{color:#fff;background:rgba(255,255,255,0.15);}',
       '.ztf-collapsed{display:none !important;}',
-      '[data-ztf-status="blocked"]{margin-top:0 !important;margin-bottom:4px !important;padding-top:0 !important;padding-bottom:0 !important;}',
+      '[data-ztf-status="blocked"]{margin-top:0 !important;margin-bottom:6px !important;padding-top:0 !important;padding-bottom:0 !important;}',
       '.ztf-pass-mark{position:absolute;top:4px;right:28px;font-size:11px;color:#67c23a;background:#f0f9eb;padding:1px 6px;border-radius:8px;z-index:5;pointer-events:none;}',
       '.ztf-title-dot{position:absolute;right:8px;top:8px;cursor:pointer;z-index:10;color:#c9c9c9;font-size:16px;line-height:1;user-select:none;padding:2px 4px;font-weight:bold;}',
       '.ztf-title-dot:hover{color:#8590a6;}',
-
       '.ztf-dot-menu{position:fixed;z-index:99997;background:#fff;border:1px solid #ebeced;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,0.15);padding:4px 0;min-width:140px;font-size:13px;}',
       '.ztf-dot-item{padding:7px 14px;cursor:pointer;color:#1a1a1a;}',
       '.ztf-dot-item:hover{background:#f6f6f6;}',
@@ -335,19 +353,14 @@
       '.ztf-fab{position:fixed;z-index:99996;width:40px;height:40px;border-radius:50%;background:#1772f6;color:#fff;border:none;cursor:pointer;font-size:20px;line-height:1;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity 0.2s;user-select:none;}',
       '.ztf-fab.show{opacity:1;pointer-events:auto;}',
       '.ztf-fab.dragging{transition:none;cursor:grabbing;}',
-     ].join(NEWLINE);
+    ].join(NEWLINE);
     document.head.appendChild(style);
-  }
-
-  function resetCardStatus(card) {
-    card.removeAttribute('data-ztf-status');
-    card.querySelectorAll('.ztf-banner, .ztf-pass-mark, .ztf-banner-dot').forEach((n) => n.remove());
-    card.querySelectorAll('.ztf-collapsed').forEach((n) => n.classList.remove('ztf-collapsed'));
   }
 
   function resetCardAll(card) {
     card.removeAttribute('data-ztf-status');
     card.removeAttribute('data-ztf-dot');
+    card.removeAttribute('data-ztf-pos-set');
     card.querySelectorAll('.ztf-banner, .ztf-pass-mark, .ztf-title-dot, .ztf-banner-dot').forEach((n) => n.remove());
     card.querySelectorAll('.ztf-collapsed').forEach((n) => n.classList.remove('ztf-collapsed'));
   }
@@ -360,8 +373,8 @@
     const existingDot = card.querySelector(':scope > .ztf-title-dot');
     if (existingDot) existingDot.remove();
 
-    const title = info.title || '';
-    const shortTitle = title.length > MAX_TITLE_DISPLAY ? title.slice(0, MAX_TITLE_DISPLAY) + '...' : title;
+    const titleText = info.displayTitle || '';
+    const shortTitle = titleText.length > MAX_TITLE_DISPLAY ? titleText.slice(0, MAX_TITLE_DISPLAY) + '...' : titleText;
 
     const collapsibles = Array.from(card.children).filter(
       (c) => !c.classList.contains('ztf-title-dot') && !c.classList.contains('ztf-banner')
@@ -521,7 +534,6 @@
       rescanAll();
     });
 
-
     setTimeout(() => {
       document.addEventListener('click', closeDotMenu, true);
     }, 0);
@@ -541,16 +553,19 @@
   }
 
   function injectDotUnblocked(card, info) {
-    if (card.dataset.ztfDot) return;
-    if (!info.title) return;
-    card.dataset.ztfDot = '1';
-    if (getComputedStyle(card).position === 'static') card.style.position = 'relative';
+    if (!card.dataset.ztfPosSet) {
+      if (getComputedStyle(card).position === 'static') card.style.position = 'relative';
+      card.dataset.ztfPosSet = '1';
+    }
 
+    if (card.dataset.ztfDot) return;
+    card.dataset.ztfDot = '1';
     const dot = createDotButton(card, info, false);
     card.appendChild(dot);
   }
 
   function scanCards() {
+    if (!isShieldPage()) return;
     const rawCards = querySelectorAllAny(document, SELECTORS.cards);
     const cards = rawCards.filter((card) => {
       return !rawCards.some((parent) => parent !== card && parent.contains(card));
@@ -559,13 +574,20 @@
     for (const card of cards) {
       const info = extractArticleInfo(card);
       if (!info) continue;
-      if (card.dataset.ztfStatus) continue;
+
+      if (card.dataset.ztfStatus) {
+        if (card.dataset.ztfStatus === 'passed') {
+          injectDotUnblocked(card, info);
+        }
+        continue;
+      }
 
       const result = classifyArticle(info);
       if (!result.isTech) {
         blockCard(card, info, result.conflict, result.conflictInfo, result.reason);
       } else {
         injectDotUnblocked(card, info);
+        card.dataset.ztfStatus = 'passed';
         stats.passed++;
         if (result.reason.startsWith('\u6280\u672f') || result.reason.startsWith('\u4f5c\u8005')) stats.passedTech++;
         if (config.debug) markPassed(card, result.reason);
@@ -623,7 +645,6 @@
     const tabs = [
       { id: 'techKeywords', label: '关键词白名单' },
       { id: 'nonTechKeywords', label: '关键词黑名单' },
-
       { id: 'techAuthors', label: '作者白名单' },
       { id: 'nonTechAuthors', label: '作者黑名单' },
       { id: 'titleBlacklist', label: '标题黑名单' },
@@ -847,12 +868,19 @@
     });
   }
 
+  function isShieldPage() {
+    const p = location.pathname;
+    return p === '/' || p === '/hot' || p === '/column-square' || p === '/ring-feeds';
+  }
+
   function init() {
     injectStyles();
     injectFab();
-    scanCards();
-    startObserver();
-    startInterval();
+    if (isShieldPage()) {
+      scanCards();
+      startObserver();
+      startInterval();
+    }
 
     try {
       GM_registerMenuCommand('\u914d\u7f6e\u8fc7\u6ee4\u89c4\u5219', openConfigPanel);
