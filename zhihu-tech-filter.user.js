@@ -2,7 +2,7 @@
 // @name         zh文章屏蔽器
 // @name:en      Zhihu Article Shield
 // @namespace    https://github.com/imenk2/zhihu-shield
-// @version      0.0.27
+// @version      0.0.28
 // @description  自动屏蔽zh推荐/热榜/专栏/圈子非技术类文章，支持作者/关键词/标题黑白名单过滤，冲突黄色折叠栏一键消冲突
 // @author       imenk2
 // @match        https://www.zhihu.com/*
@@ -527,7 +527,15 @@
           }
         }
       } else if (action === 'removeKw') {
-        const kw = window.prompt('输入要移除的屏蔽关键词：', info.title || '');
+        const text = ((info.title || '') + ' ' + (info.summary || ''));
+        const hits = (config.nonTechKeywords || []).filter((k) => k && text.includes(k));
+        let promptMsg = '输入要移除的屏蔽关键词：';
+        let defaultVal = info.title || '';
+        if (hits.length > 0) {
+          promptMsg = '命中: ' + hits.map((h) => h + '[' + getKwSource(h) + ']').join(', ') + '\n输入要移除的词：';
+          defaultVal = hits[0];
+        }
+        const kw = window.prompt(promptMsg, defaultVal);
         if (kw && kw.trim()) {
           const v = kw.trim();
           config.nonTechKeywords = (config.nonTechKeywords || []).filter((k) => k !== v);
@@ -871,6 +879,9 @@
         }
       }
     }
+    if (Array.isArray(rules.nonTechKeywords)) {
+      try { GM_setValue('ztf_remote_kws_snapshot', rules.nonTechKeywords.slice()); } catch (e) { /* ignore */ }
+    }
     if (Array.isArray(rules.nonTechGuides)) {
       const built = buildGuidesFromDefs(rules.nonTechGuides);
       if (built) {
@@ -880,6 +891,14 @@
     }
     if (added > 0) saveConfig(config);
     return added;
+  }
+
+  function getKwSource(kw) {
+    if ((DEFAULT_CONFIG.nonTechKeywords || []).includes(kw)) return '本地默认';
+    let remoteKws = [];
+    try { remoteKws = GM_getValue('ztf_remote_kws_snapshot', []); } catch (e) { /* ignore */ }
+    if (Array.isArray(remoteKws) && remoteKws.includes(kw)) return '远程规则';
+    return '手动添加';
   }
 
   function maybeAutoSyncRemote() {
