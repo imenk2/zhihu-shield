@@ -2,7 +2,7 @@
 // @name         zh文章屏蔽器
 // @name:en      Zhihu Article Shield
 // @namespace    https://github.com/imenk2/zhihu-shield
-// @version      0.0.20
+// @version      0.0.21
 // @description  自动屏蔽zh推荐/热榜/专栏/圈子非技术类文章，支持作者/关键词/标题黑白名单过滤，冲突黄色折叠栏一键消冲突
 // @author       imenk2
 // @match        https://www.zhihu.com/*
@@ -115,6 +115,19 @@
       '股票', '基金', '理财', '房产', '经济', '通胀', '汇率', '保险',
       '汽车', '驾照', '电动车', '手机评测',
       '节日', '过年', '春节', '中秋', '情人节',
+      '两性', '性教育', '性生活', '性健康', '避孕', '堕胎', '一夜情', '约炮', '炮友',
+      '结婚', '离婚', '彩礼', '婆媳', '夫妻', '老婆', '老公', '媳妇', '剩女', '逼婚',
+      '心动', '失恋', '治愈', '温暖', '扎心', '共鸣',
+      '游记', '民宿', '打卡', '自由行', '跟团', '出境游',
+      '北京', '上海', '广州', '深圳', '成都', '杭州', '武汉', '南京', '西安', '重庆',
+      '苏州', '天津', '长沙', '青岛', '郑州', '昆明', '大连', '厦门', '沈阳', '哈尔滨',
+      '佛山', '东莞', '无锡', '宁波', '福州', '合肥', '济南', '太原', '南宁', '贵阳',
+      '兰州', '海口', '拉萨', '乌鲁木齐',
+      '职场', '上班', '加班', '跳槽', '辞职', '裁员', '失业', '面试', '简历', '老板',
+      '同事', '内卷', '996', '007', '打工人', '社畜', '体制内', '公务员', '退休', '薪水',
+      '工资', '年终奖', '晋升', '绩效',
+      '杂文', '随笔', '书评', '读书', '名著',
+      '朝代', '皇帝', '古代', '近代', '抗战', '民国',
     ],
     techAuthors: [],
     nonTechAuthors: [],
@@ -673,6 +686,27 @@
     /感悟/g, /心得/g, /体会/g, /教训/g, /遗憾/g, /后悔/g,
   ];
 
+  function buildGuidesFromDefs(defs) {
+    const list = [];
+    for (const d of defs) {
+      try {
+        if (d && typeof d.pattern === 'string' && typeof d.flags === 'string') {
+          list.push(new RegExp(d.pattern, d.flags));
+        }
+      } catch (e) { /* skip invalid */ }
+    }
+    return list.length > 0 ? list : null;
+  }
+
+  let activeNonTechGuides = NON_TECH_GUIDES;
+  try {
+    const savedGuides = GM_getValue('ztf_remote_guides', null);
+    if (Array.isArray(savedGuides)) {
+      const built = buildGuidesFromDefs(savedGuides);
+      if (built) activeNonTechGuides = built;
+    }
+  } catch (e) { /* ignore */ }
+
   function extractNonTechCandidates() {
     const rawCards = querySelectorAllAny(document, SELECTORS.cards);
     const cards = rawCards.filter((card) => {
@@ -692,7 +726,7 @@
       if (!info || !info.title) continue;
       const title = info.title;
 
-      for (const re of NON_TECH_GUIDES) {
+      for (const re of activeNonTechGuides) {
         re.lastIndex = 0;
         let m;
         while ((m = re.exec(title)) !== null) {
@@ -819,6 +853,13 @@
             added++;
           }
         }
+      }
+    }
+    if (Array.isArray(rules.nonTechGuides)) {
+      const built = buildGuidesFromDefs(rules.nonTechGuides);
+      if (built) {
+        activeNonTechGuides = built;
+        try { GM_setValue('ztf_remote_guides', rules.nonTechGuides); } catch (e) { /* ignore */ }
       }
     }
     if (added > 0) saveConfig(config);
