@@ -2,7 +2,7 @@
 // @name         zh文章屏蔽器
 // @name:en      Zhihu Article Shield
 // @namespace    https://github.com/imenk2/zhihu-shield
-// @version      0.0.58
+// @version      0.0.59
 // @description  自动屏蔽zh推荐/热榜/专栏/圈子非技术类文章，支持作者/关键词/标题黑白名单过滤，冲突黄色折叠栏一键消冲突
 // @author       imenk2
 // @match        https://www.zhihu.com/*
@@ -234,11 +234,13 @@
 
     const hitCategories = [];
     const hitKeywordMap = {};
-    for (const cat of activeCategories) {
-      for (const kw of cat.keywords) {
+    const activeCatId = config.activeCategoryId || '';
+    const activeCat = activeCategories.find((c) => c.id === activeCatId);
+    if (activeCat) {
+      for (const kw of activeCat.keywords) {
         if (kw && lowerText.includes(kw.toLowerCase())) {
-          hitCategories.push(cat);
-          hitKeywordMap[cat.id] = kw;
+          hitCategories.push(activeCat);
+          hitKeywordMap[activeCat.id] = kw;
           break;
         }
       }
@@ -870,9 +872,16 @@
   try {
     const savedCats = GM_getValue('ztf_categories', null);
     if (Array.isArray(savedCats) && savedCats.length > 0) {
-      const allNew = savedCats.every((c) => c && NEW_CAT_IDS.includes(c.id));
-      if (allNew) {
-        activeCategories = savedCats;
+      const seen = new Set();
+      const filtered = savedCats.filter((c) => {
+        if (c && NEW_CAT_IDS.includes(c.id) && !seen.has(c.id)) {
+          seen.add(c.id);
+          return true;
+        }
+        return false;
+      });
+      if (filtered.length === NEW_CAT_IDS.length) {
+        activeCategories = filtered;
       } else {
         try { GM_setValue('ztf_categories', null); } catch (e) { /* ignore */ }
       }
