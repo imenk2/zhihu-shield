@@ -1,0 +1,386 @@
+{
+  "version": "1.0.0",
+  "updatedAt": "2026-10-10",
+  "questionPatterns": [
+    {
+      "pattern": "怎么(?:评价|看待|说|做|想|看|回事|才能|会|了|办|用|选|知道|理解|处理|解决|避免|提高|优化|实现|设计|让|做到)",
+      "flags": "g"
+    },
+    {
+      "pattern": "如何(?:评价|看待|说|做|想|看|才能|让|能|用|选|知道|理解|处理|解决|避免|提高|优化|实现|设计|做到)",
+      "flags": "g"
+    },
+    {
+      "pattern": "怎样(?:评价|看待|说|做|想|看|才能|让|能|用|选|知道|理解|处理|解决|避免|提高|优化|实现|设计|做到|才算|回事)",
+      "flags": "g"
+    },
+    {
+      "pattern": "为何(?:不|要|会|能|是|没有|有)?",
+      "flags": "g"
+    },
+    {
+      "pattern": "凭什么",
+      "flags": "g"
+    },
+    {
+      "pattern": "难道(?:不|是|要|会|能)",
+      "flags": "g"
+    },
+    {
+      "pattern": "究竟(?:是|不|要|会|能|有没有|是不是|能不能|是谁)",
+      "flags": "g"
+    },
+    {
+      "pattern": "到底(?:是|不|要|会|能|有没有|是不是|能不能|想不想|要不要|是谁)",
+      "flags": "g"
+    },
+    {
+      "pattern": "敢不敢",
+      "flags": "g"
+    },
+    {
+      "pattern": "要不要",
+      "flags": "g"
+    },
+    {
+      "pattern": "会不会",
+      "flags": "g"
+    },
+    {
+      "pattern": "能不能",
+      "flags": "g"
+    },
+    {
+      "pattern": "有没有",
+      "flags": "g"
+    },
+    {
+      "pattern": "是不是",
+      "flags": "g"
+    },
+    {
+      "pattern": "是否",
+      "flags": "g"
+    },
+    {
+      "pattern": "能否",
+      "flags": "g"
+    },
+    {
+      "pattern": "可否",
+      "flags": "g"
+    },
+    {
+      "pattern": "值不值得",
+      "flags": "g"
+    },
+    {
+      "pattern": "应不应该",
+      "flags": "g"
+    },
+    {
+      "pattern": "该不该",
+      "flags": "g"
+    },
+    {
+      "pattern": "你(?:这一生|曾经|觉得|认为|怎么|如何|为什么|有没有|会|能|敢|想|看|说|做|知道|理解|感受|体验|经历|看法)",
+      "flags": "g"
+    },
+    {
+      "pattern": "您(?:觉得|认为|怎么看|如何|为什么|有没有|会|能|想|看|说|做)",
+      "flags": "g"
+    },
+    {
+      "pattern": "大家(?:怎么看|如何|觉得|认为|有没有|是不是|会不会)",
+      "flags": "g"
+    },
+    {
+      "pattern": "我们(?:该怎么|该如何|为什么|要不要|是不是)",
+      "flags": "g"
+    },
+    {
+      "pattern": "是个怎样的",
+      "flags": "g"
+    },
+    {
+      "pattern": "是个什么样的",
+      "flags": "g"
+    },
+    {
+      "pattern": "是怎样的",
+      "flags": "g"
+    },
+    {
+      "pattern": "是什么样的",
+      "flags": "g"
+    },
+    {
+      "pattern": "怎样一种",
+      "flags": "g"
+    },
+    {
+      "pattern": "怎样的人",
+      "flags": "g"
+    },
+    {
+      "pattern": "是什么",
+      "flags": "g"
+    },
+    {
+      "pattern": "为什么.{0,8}没有",
+      "flags": "g"
+    },
+    {
+      "pattern": "有哪些",
+      "flags": "g"
+    },
+    {
+      "pattern": "有什么",
+      "flags": "g"
+    },
+    {
+      "pattern": "什么意思",
+      "flags": "g"
+    },
+    {
+      "pattern": "什么感觉",
+      "flags": "g"
+    },
+    {
+      "pattern": "什么体验",
+      "flags": "g"
+    },
+    {
+      "pattern": "多大了",
+      "flags": "g"
+    },
+    {
+      "pattern": "多少岁",
+      "flags": "g"
+    },
+    {
+      "pattern": "什么情况下",
+      "flags": "g"
+    },
+    {
+      "pattern": "什么原因",
+      "flags": "g"
+    },
+    {
+      "pattern": "什么梗",
+      "flags": "g"
+    },
+    {
+      "pattern": "什么水平",
+      "flags": "g"
+    },
+    {
+      "pattern": "什么背景",
+      "flags": "g"
+    },
+    {
+      "pattern": "什么来头",
+      "flags": "g"
+    },
+    {
+      "pattern": "发生了什么",
+      "flags": "g"
+    },
+    {
+      "pattern": "怎么回事",
+      "flags": "g"
+    },
+    {
+      "pattern": "何为",
+      "flags": "g"
+    },
+    {
+      "pattern": "何谓",
+      "flags": "g"
+    },
+    {
+      "pattern": "到底是谁",
+      "flags": "g"
+    },
+    {
+      "pattern": "究竟是谁",
+      "flags": "g"
+    },
+    {
+      "pattern": "是谁",
+      "flags": "g"
+    },
+    {
+      "pattern": "叫什么",
+      "flags": "g"
+    },
+    {
+      "pattern": "叫什么名字",
+      "flags": "g"
+    },
+    {
+      "pattern": "什么名字",
+      "flags": "g"
+    },
+    {
+      "pattern": "靠谱吗",
+      "flags": "g"
+    },
+    {
+      "pattern": "真的吗",
+      "flags": "g"
+    },
+    {
+      "pattern": "是真的吗",
+      "flags": "g"
+    },
+    {
+      "pattern": "是不是真的",
+      "flags": "g"
+    },
+    {
+      "pattern": "为何要",
+      "flags": "g"
+    },
+    {
+      "pattern": "为什么要",
+      "flags": "g"
+    },
+    {
+      "pattern": "为什么不",
+      "flags": "g"
+    },
+    {
+      "pattern": "为什么不能",
+      "flags": "g"
+    },
+    {
+      "pattern": "为什么中国",
+      "flags": "g"
+    },
+    {
+      "pattern": "怎样才算",
+      "flags": "g"
+    },
+    {
+      "pattern": "如何才能",
+      "flags": "g"
+    },
+    {
+      "pattern": "如何做到",
+      "flags": "g"
+    },
+    {
+      "pattern": "怎么做到",
+      "flags": "g"
+    },
+    {
+      "pattern": "怎样做到",
+      "flags": "g"
+    },
+    {
+      "pattern": "怎么让",
+      "flags": "g"
+    },
+    {
+      "pattern": "怎样回事",
+      "flags": "g"
+    },
+    {
+      "pattern": "为啥",
+      "flags": "g"
+    },
+    {
+      "pattern": "为什么这么多",
+      "flags": "g"
+    },
+    {
+      "pattern": "为什么.{0,6}都",
+      "flags": "g"
+    },
+    {
+      "pattern": "经历了什么",
+      "flags": "g"
+    },
+    {
+      "pattern": "难绷",
+      "flags": "g"
+    },
+    {
+      "pattern": "绷不住",
+      "flags": "g"
+    },
+    {
+      "pattern": "破防",
+      "flags": "g"
+    },
+    {
+      "pattern": "emo",
+      "flags": "g"
+    },
+    {
+      "pattern": "哪些人",
+      "flags": "g"
+    },
+    {
+      "pattern": "哪些事",
+      "flags": "g"
+    },
+    {
+      "pattern": "哪个好",
+      "flags": "g"
+    },
+    {
+      "pattern": "哪本书",
+      "flags": "g"
+    },
+    {
+      "pattern": "哪部电影",
+      "flags": "g"
+    },
+    {
+      "pattern": "为什么",
+      "flags": "g"
+    },
+    {
+      "pattern": "真的有",
+      "flags": "g"
+    },
+    {
+      "pattern": "有多",
+      "flags": "g"
+    },
+    {
+      "pattern": "在哪里",
+      "flags": "g"
+    },
+    {
+      "pattern": "值吗",
+      "flags": "g"
+    },
+    {
+      "pattern": "你们",
+      "flags": "g"
+    },
+    {
+      "pattern": "如果看待",
+      "flags": "g"
+    },
+    {
+      "pattern": "还是",
+      "flags": "g"
+    },
+    {
+      "pattern": "什么地步",
+      "flags": "g"
+    },
+    {
+      "pattern": "会影响",
+      "flags": "g"
+    },
+    {
+      "pattern": "起到了哪些",
+      "flags": "g"
+    }
+  ]
+}
