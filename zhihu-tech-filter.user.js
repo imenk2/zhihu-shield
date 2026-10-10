@@ -2,7 +2,7 @@
 // @name         zh文章屏蔽器
 // @name:en      Zhihu Article Shield
 // @namespace    https://github.com/imenk2/zhihu-shield
-// @version      0.0.55
+// @version      0.0.56
 // @description  自动屏蔽zh推荐/热榜/专栏/圈子非技术类文章，支持作者/关键词/标题黑白名单过滤，冲突黄色折叠栏一键消冲突
 // @author       imenk2
 // @match        https://www.zhihu.com/*
@@ -134,13 +134,7 @@
   document.documentElement.dataset.ztfMsgShield = config.messageShieldEnabled !== false ? '1' : '0';
 
   const NEW_CAT_IDS = ['tech', 'life', 'emotion', 'entertainment', 'society'];
-  const CAT_MIGRATION = {
-    tech: 'tech', parenting: 'life', emotion: 'emotion', entertainment: 'entertainment',
-    politics: 'society', life: 'life', education: 'life', career: 'entertainment',
-    health: 'life', finance: 'entertainment', history: 'entertainment', culture: 'entertainment',
-    sports: 'entertainment', travel: 'life', food: 'life', fashion: 'life',
-    psychology: 'emotion', society: 'society',
-  };
+
   (function migrateConfig() {
     let changed = false;
     if (config.defaultAction === 'pass') { config.defaultAction = 'low'; changed = true; }
