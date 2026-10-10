@@ -2,7 +2,7 @@
 // @name         zh文章屏蔽器
 // @name:en      Zhihu Article Shield
 // @namespace    https://github.com/imenk2/zhihu-shield
-// @version      0.0.51
+// @version      0.0.54
 // @description  自动屏蔽zh推荐/热榜/专栏/圈子非技术类文章，支持作者/关键词/标题黑白名单过滤，冲突黄色折叠栏一键消冲突
 // @author       imenk2
 // @match        https://www.zhihu.com/*
@@ -83,16 +83,13 @@
   };
 
   const DEFAULT_CONFIG = {
-
-
     techAuthors: [],
     nonTechAuthors: [],
-    categoryLevel: { tech: 'low', life: 'high', emotion: 'high', entertainment: 'high', society: 'high' },
     categoryWhitelist: {},
     categoryBlacklist: {},
     questionShieldEnabled: true,
     messageShieldEnabled: true,
-    defaultAction: 'block',
+    defaultAction: 'high',
     debug: false,
   };
 
@@ -143,38 +140,13 @@
     sports: 'entertainment', travel: 'life', food: 'life', fashion: 'life',
     psychology: 'emotion', society: 'society',
   };
-  (function migrateCategoryLevel() {
+  (function migrateConfig() {
     let changed = false;
-    const rawSaved = GM_getValue(CONFIG_KEY, null);
-    if (rawSaved && Array.isArray(rawSaved.blockedCategories) && !rawSaved.categoryLevel) {
-      const bc = rawSaved.blockedCategories;
-      const newLevel = {};
-      for (const id of NEW_CAT_IDS) {
-        let wasBlocked = false;
-        for (const oldId of bc) {
-          const mappedId = CAT_MIGRATION[oldId] || oldId;
-          if (mappedId === id) { wasBlocked = true; break; }
-        }
-        newLevel[id] = wasBlocked ? 'high' : 'low';
-      }
-      config.categoryLevel = newLevel;
-      delete config.blockedCategories;
-      changed = true;
-    }
-    if (!config.categoryLevel || typeof config.categoryLevel !== 'object') {
-      config.categoryLevel = {};
-      changed = true;
-    }
-    for (const id of NEW_CAT_IDS) {
-      if (!config.categoryLevel[id] || !['low', 'basic', 'high'].includes(config.categoryLevel[id])) {
-        config.categoryLevel[id] = DEFAULT_CONFIG.categoryLevel[id] || 'high';
-        changed = true;
-      }
-    }
-    if (config.blockedCategories) {
-      delete config.blockedCategories;
-      changed = true;
-    }
+    if (config.defaultAction === 'pass') { config.defaultAction = 'low'; changed = true; }
+    if (config.defaultAction === 'block') { config.defaultAction = 'high'; changed = true; }
+    if (!['low', 'basic', 'high'].includes(config.defaultAction)) { config.defaultAction = 'high'; changed = true; }
+    if (config.blockedCategories) { delete config.blockedCategories; changed = true; }
+    if (config.categoryLevel) { delete config.categoryLevel; changed = true; }
     if (changed) saveConfig(config);
   })();
 
@@ -245,11 +217,12 @@
   function classifyArticle(info) {
     const { title, author } = info;
     const text = title || '';
+    const lowerText = text.toLowerCase();
 
     if (author && config.nonTechAuthors && config.nonTechAuthors.length > 0) {
       for (const a of config.nonTechAuthors) {
         if (a && (author === a || author.includes(a) || a.includes(author))) {
-          return { isTech: false, reason: '作者黑名单: ' + author };
+          return { isTech: false, reason: '作者黑名单: ' + author, category: null };
         }
       }
     }
@@ -260,83 +233,115 @@
         if (a && (author === a || author.includes(a) || a.includes(author))) { techAuthorHit = true; break; }
       }
       if (techAuthorHit) {
-        return { isTech: true, reason: '作者白名单: ' + author };
+        return { isTech: true, reason: '作者白名单: ' + author, category: null };
       }
     }
 
-    const lowerText = text.toLowerCase();
-
-    let hitCategory = null;
-    let hitKeyword = null;
-    if (activeCategories.length > 0) {
-      for (const cat of activeCategories) {
-        for (const kw of cat.keywords) {
-          if (kw && lowerText.includes(kw.toLowerCase())) {
-            hitCategory = cat;
-            hitKeyword = kw;
-            break;
-          }
+    const hitCategories = [];
+    const hitKeywordMap = {};
+    for (const cat of activeCategories) {
+      for (const kw of cat.keywords) {
+        if (kw && lowerText.includes(kw.toLowerCase())) {
+          hitCategories.push(cat);
+          hitKeywordMap[cat.id] = kw;
+          break;
         }
-        if (hitCategory) break;
       }
     }
 
-    if (hitCategory) {
-      const level = (config.categoryLevel && config.categoryLevel[hitCategory.id]) || 'high';
-      const catWhitelist = (config.categoryWhitelist && config.categoryWhitelist[hitCategory.id]) || [];
+    const action = config.defaultAction || 'high';
+    const passSignals = [];
+    const blockSignals = [];
+
+    const techHit = hitCategories.find((c) => c.id === 'tech');
+    if (techHit) {
+      passSignals.push({ reason: '技术[' + hitKeywordMap['tech'] + ']', category: techHit });
+    }
+
+    for (const cat of hitCategories) {
+      const catWhitelist = (config.categoryWhitelist && config.categoryWhitelist[cat.id]) || [];
+      const catBlacklist = (config.categoryBlacklist && config.categoryBlacklist[cat.id]) || [];
       for (const k of catWhitelist) {
         if (k && text.includes(k)) {
-          return { isTech: true, reason: '分类白名单[' + hitCategory.name + ']: ' + k };
+          passSignals.push({ reason: '白名单[' + cat.name + ']: ' + k, category: cat, whitelistValue: k });
         }
       }
-      const catBlacklist = (config.categoryBlacklist && config.categoryBlacklist[hitCategory.id]) || [];
       for (const k of catBlacklist) {
         if (k && text.includes(k)) {
-          return { isTech: false, reason: '分类黑名单[' + hitCategory.name + ']: ' + k };
+          blockSignals.push({ reason: '黑名单[' + cat.name + ']: ' + k, category: cat, blacklistValue: k });
         }
       }
-      if (level === 'low') {
-        return { isTech: true, reason: '分类放行[' + hitCategory.name + ']: ' + hitKeyword };
-      }
-      if (level === 'high' && config.questionShieldEnabled !== false && activeQuestionPatterns.length > 0) {
-        for (const re of activeQuestionPatterns) {
-          re.lastIndex = 0;
-          if (re.test(text)) {
-            return { isTech: false, reason: '分类严格问题屏蔽[' + hitCategory.name + ']: ' + re.source };
-          }
-        }
-      }
-      if (level === 'high') {
-        return { isTech: false, reason: '分类严格屏蔽[' + hitCategory.name + ']: ' + hitKeyword };
-      }
-      return { isTech: true, reason: '分类基础保留[' + hitCategory.name + ']: ' + hitKeyword };
     }
 
-    if (config.questionShieldEnabled !== false && activeQuestionPatterns.length > 0) {
-      let questionHit = null;
+    if (action === 'high') {
+      for (const cat of hitCategories) {
+        if (cat.id !== 'tech') {
+          blockSignals.push({ reason: '默认屏蔽[' + cat.name + ']', category: cat });
+        }
+      }
+    }
+
+    if (action === 'basic' && config.questionShieldEnabled !== false && activeQuestionPatterns.length > 0) {
       for (const re of activeQuestionPatterns) {
         re.lastIndex = 0;
-        if (re.test(text)) { questionHit = re.source; break; }
-      }
-      if (questionHit) {
-        return { isTech: false, reason: '问题屏蔽: ' + questionHit };
+        if (re.test(text)) {
+          blockSignals.push({ reason: '问题屏蔽: ' + re.source, category: null });
+          break;
+        }
       }
     }
 
-    return {
-      isTech: config.defaultAction === 'pass',
-      reason: config.defaultAction === 'pass' ? '默认放行' : '默认屏蔽',
-    };
+    if (passSignals.length > 0 && blockSignals.length > 0) {
+      const pass = passSignals[0];
+      const block = blockSignals.find((s) => s.blacklistValue) || blockSignals[0];
+      const category = pass.category || block.category;
+      const conflictInfo = {};
+      if (block.blacklistValue && block.category) {
+        conflictInfo.catId = block.category.id;
+        conflictInfo.catName = block.category.name;
+        conflictInfo.blacklistValue = block.blacklistValue;
+      }
+      if (pass.whitelistValue && pass.category) {
+        conflictInfo.catId = pass.category.id;
+        conflictInfo.catName = pass.category.name;
+        conflictInfo.whitelistValue = pass.whitelistValue;
+      }
+      return {
+        isTech: false,
+        conflict: true,
+        conflictInfo,
+        reason: '冲突: ' + pass.reason + ' \u2194 ' + block.reason,
+        category,
+      };
+    }
+
+    if (passSignals.length > 0) {
+      return { isTech: true, reason: passSignals[0].reason, category: passSignals[0].category };
+    }
+    if (blockSignals.length > 0) {
+      return { isTech: false, reason: blockSignals[0].reason, category: blockSignals[0].category };
+    }
+
+    if (action === 'low') {
+      return { isTech: true, reason: '默认放行', category: null };
+    }
+    if (action === 'basic') {
+      return { isTech: true, reason: '默认放行', category: null };
+    }
+    return { isTech: false, reason: '默认屏蔽', category: null };
   }
 
   function getHitCategory(info) {
     const lowerText = (info.title || '').toLowerCase();
+    const hits = [];
     for (const cat of activeCategories) {
       for (const kw of cat.keywords) {
-        if (kw && lowerText.includes(kw.toLowerCase())) return cat;
+        if (kw && lowerText.includes(kw.toLowerCase())) { hits.push(cat); break; }
       }
     }
-    return null;
+    if (hits.length === 0) return null;
+    hits.sort((a, b) => (a.priority || 99) - (b.priority || 99));
+    return hits[0];
   }
 
 
@@ -386,7 +391,7 @@
       '.ztf-banner-action{color:#bbb;flex-shrink:0;}',
       '.ztf-banner.ztf-banner-conflict{border-left-color:#ccc;background:#f0f0f0;}',
       '.ztf-banner.ztf-banner-conflict:hover{background:#e8e8e8;}',
-      '.ztf-banner.ztf-banner-conflict .ztf-banner-icon{color:#999;}',
+      '.ztf-banner.ztf-banner-conflict .ztf-banner-icon{color:#f0ad4e;font-size:12px;}',
       '.ztf-banner.ztf-banner-conflict .ztf-banner-text{color:#888;}',
       '.ztf-banner-fix{color:#fff;background:#999;border:1px solid #888;border-radius:3px;padding:1px 6px;font-size:10px;cursor:pointer;flex-shrink:0;user-select:none;}',
       '.ztf-banner-fix:hover{background:#888;}',
@@ -398,14 +403,13 @@
       'html[data-ztf-theme="dark"] .ztf-banner-action{color:#777;}',
       'html[data-ztf-theme="dark"] .ztf-banner.ztf-banner-conflict{background:#333;border-left-color:#555;}',
       'html[data-ztf-theme="dark"] .ztf-banner.ztf-banner-conflict:hover{background:#3a3a3c;}',
-      'html[data-ztf-theme="dark"] .ztf-banner.ztf-banner-conflict .ztf-banner-icon{color:#666;}',
+      'html[data-ztf-theme="dark"] .ztf-banner.ztf-banner-conflict .ztf-banner-icon{color:#e0a800;}',
       'html[data-ztf-theme="dark"] .ztf-banner.ztf-banner-conflict .ztf-banner-text{color:#777;}',
       'html[data-ztf-theme="dark"] .ztf-banner-dot{color:#777;}',
       'html[data-ztf-theme="dark"] .ztf-banner-dot:hover{color:#ccc;background:rgba(255,255,255,0.08);}',
       '.ztf-collapsed{display:none !important;}',
       'html[data-ztf-msg-shield="1"] button[href*="/messages"] svg ~ div{display:none !important;}',
-      '#ztf-cat-levels label{color:#333;}',
-      'html[data-ztf-theme="dark"] #ztf-cat-levels label{color:#ccc;}',
+
       '[data-ztf-status="blocked"]{margin-top:0 !important;margin-bottom:6px !important;padding-top:0 !important;padding-bottom:0 !important;}',
       '.ztf-pass-mark{position:absolute;top:4px;right:28px;font-size:11px;color:#67c23a;background:#f0f9eb;padding:1px 6px;border-radius:8px;z-index:5;pointer-events:none;}',
       '.ztf-title-dot{position:absolute;right:8px;top:8px;cursor:pointer;z-index:10;color:#c9c9c9;font-size:16px;line-height:1;user-select:none;padding:2px 4px;font-weight:bold;}',
@@ -468,7 +472,7 @@
     card.querySelectorAll('.ztf-collapsed').forEach((n) => n.classList.remove('ztf-collapsed'));
   }
 
-  function blockCard(card, info, conflict, conflictInfo, reason) {
+  function blockCard(card, info, conflict, conflictInfo, reason, category) {
     if (card.dataset.ztfStatus === 'blocked') return;
     card.dataset.ztfStatus = 'blocked';
     card.dataset.ztfDot = '1';
@@ -489,11 +493,12 @@
 
     const icon = document.createElement('span');
     icon.className = 'ztf-banner-icon';
-    icon.textContent = '\u2298';
+    icon.textContent = conflict ? '\u26a0' : '\u2298';
 
     const text = document.createElement('span');
     text.className = 'ztf-banner-text';
-    text.textContent = (conflict && reason) ? reason : ('\u5df2\u5c4f\u853d \u00b7 ' + shortTitle);
+    const catLabel = category ? '[' + category.name + '] ' : '';
+    text.textContent = (conflict && reason) ? reason : ('\u5df2\u5c4f\u853d ' + catLabel + '\u00b7 ' + shortTitle);
 
     const action = document.createElement('span');
     action.className = 'ztf-banner-action';
@@ -513,7 +518,9 @@
       fixBlack.addEventListener('click', (e) => {
         e.stopPropagation();
         e.preventDefault();
-        config[conflictInfo.blacklistField] = (config[conflictInfo.blacklistField] || [])
+        if (!config.categoryBlacklist) config.categoryBlacklist = {};
+        const blCat = conflictInfo.catId;
+        config.categoryBlacklist[blCat] = (config.categoryBlacklist[blCat] || [])
           .filter((x) => x !== conflictInfo.blacklistValue);
         saveConfig(config);
         rescanAll();
@@ -526,7 +533,9 @@
       fixWhite.addEventListener('click', (e) => {
         e.stopPropagation();
         e.preventDefault();
-        config[conflictInfo.whitelistField] = (config[conflictInfo.whitelistField] || [])
+        if (!config.categoryWhitelist) config.categoryWhitelist = {};
+        const wlCat = conflictInfo.catId;
+        config.categoryWhitelist[wlCat] = (config.categoryWhitelist[wlCat] || [])
           .filter((x) => x !== conflictInfo.whitelistValue);
         saveConfig(config);
         rescanAll();
@@ -741,7 +750,7 @@
 
       const result = classifyArticle(info);
       if (!result.isTech) {
-        blockCard(card, info, result.conflict, result.conflictInfo, result.reason);
+        blockCard(card, info, result.conflict, result.conflictInfo, result.reason, result.category);
       } else {
         injectDotUnblocked(card, info);
         card.dataset.ztfStatus = 'passed';
@@ -1038,11 +1047,10 @@
       updatedAt: new Date().toISOString().slice(0, 10),
       source: 'local-export',
       categories: cats,
-      categoryLevel: config.categoryLevel || {},
       techAuthors: config.techAuthors || [],
       nonTechAuthors: config.nonTechAuthors || [],
       questionPatterns: getQuestionPatterns(),
-      defaultAction: config.defaultAction || 'block',
+      defaultAction: config.defaultAction || 'high',
       debug: !!config.debug,
       messageShieldEnabled: config.messageShieldEnabled !== false,
       questionShieldEnabled: config.questionShieldEnabled !== false,
@@ -1079,18 +1087,14 @@
             }
           }
         }
-        if (data.categoryLevel && typeof data.categoryLevel === 'object') {
-          if (!config.categoryLevel) config.categoryLevel = {};
-          for (const id of NEW_CAT_IDS) {
-            const v = data.categoryLevel[id];
-            if (v && ['low', 'basic', 'high'].includes(v)) {
-              config.categoryLevel[id] = v;
-            }
-          }
+        if (typeof data.defaultAction === 'string') {
+          const da = data.defaultAction;
+          if (da === 'pass') config.defaultAction = 'low';
+          else if (da === 'block') config.defaultAction = 'high';
+          else if (['low', 'basic', 'high'].includes(da)) config.defaultAction = da;
         }
         if (Array.isArray(data.techAuthors)) config.techAuthors = data.techAuthors.filter((v) => v && typeof v === 'string');
         if (Array.isArray(data.nonTechAuthors)) config.nonTechAuthors = data.nonTechAuthors.filter((v) => v && typeof v === 'string');
-        if (typeof data.defaultAction === 'string') config.defaultAction = data.defaultAction;
         if (typeof data.debug === 'boolean') config.debug = data.debug;
         if (typeof data.messageShieldEnabled === 'boolean') config.messageShieldEnabled = data.messageShieldEnabled;
         if (typeof data.questionShieldEnabled === 'boolean') config.questionShieldEnabled = data.questionShieldEnabled;
@@ -1126,11 +1130,9 @@
     panel.id = 'ztf-panel';
 
     const tabs = [
-
-
       { id: 'techAuthors', label: '作者白名单' },
       { id: 'nonTechAuthors', label: '作者黑名单' },
-
+      { id: 'categoryRules', label: '分类规则' },
       { id: 'settings', label: '设置' },
     ];
 
@@ -1168,16 +1170,15 @@
       div.dataset.content = t.id;
 
       if (t.id === 'settings') {
+        const actionOpts = [
+          { v: 'low', l: '低 (放行)' },
+          { v: 'basic', l: '中 (基础：问题正则屏蔽，其余放行)' },
+          { v: 'high', l: '高 (严格：未命中即屏蔽)' },
+        ].map((o) => '<option value="' + o.v + '"' + (config.defaultAction === o.v ? ' selected' : '') + '>' + o.l + '</option>').join('');
         div.innerHTML =
           '<div class="ztf-settings-row">' +
-            '<div><div class="ztf-settings-label">未命中规则时的默认行为</div>' +
-            '<div class="ztf-settings-desc">无明确特征的文章按此项处理</div></div>' +
-            '<div class="ztf-radio-group">' +
-              '<label class="ztf-radio"><input type="radio" name="defaultAction" value="pass" ' +
-              (config.defaultAction === 'pass' ? 'checked' : '') + '> 放行</label>' +
-              '<label class="ztf-radio"><input type="radio" name="defaultAction" value="block" ' +
-              (config.defaultAction === 'block' ? 'checked' : '') + '> 屏蔽</label>' +
-            '</div>' +
+            '<div><div class="ztf-settings-label">未命中规则时的默认行为</div></div>' +
+            '<select id="ztf-default-action" style="width:100%;font-size:13px;padding:4px;">' + actionOpts + '</select>' +
           '</div>' +
           '<div class="ztf-settings-row">' +
             '<div><div class="ztf-settings-label">屏蔽私信未读提示</div></div>' +
@@ -1189,25 +1190,36 @@
             '<div class="ztf-toggle' + (config.debug ? ' on' : '') + '" id="ztf-debug-toggle"></div>' +
           '</div>' +
           '<div class="ztf-settings-row">' +
-            '<div><div class="ztf-settings-label">分类分级</div>' +
-            '<div class="ztf-settings-desc">低=放行 中=基础(黑名单屏蔽) 高=严格(白名单放行否则屏蔽)</div></div>' +
-            '<div id="ztf-cat-levels" style="display:flex;flex-direction:column;gap:6px;padding:4px 0;"></div>' +
-            '<div style="margin-top:8px;"><button class="ztf-btn ztf-btn-primary" id="ztf-sync-cats">同步分类规则</button></div>' +
+            '<div><div class="ztf-settings-label">同步分类规则</div>' +
+            '<div class="ztf-settings-desc">从远程拉取分类黑白名单与问题正则</div></div>' +
+            '<div><button class="ztf-btn ztf-btn-primary" id="ztf-sync-cats">同步</button></div>' +
           '</div>' +
           '<div class="ztf-settings-row"><div><div class="ztf-settings-label" id="ztf-remote-status" style="color:#8590a6;font-weight:normal;"></div></div></div>' +
           '<div class="ztf-settings-row">' +
-            '<div><div class="ztf-settings-label">配置备份</div>' +
-            '<div class="ztf-settings-desc">导出为 JSON，导入即覆盖生效</div></div>' +
+            '<div><div class="ztf-settings-label">配置备份</div></div>' +
             '<div style="display:flex;gap:8px;">' +
-              '<button class="ztf-btn" id="ztf-export-config">导出配置</button>' +
-              '<button class="ztf-btn" id="ztf-import-config">导入配置</button>' +
+              '<button class="ztf-btn" id="ztf-export-config">导出</button>' +
+              '<button class="ztf-btn" id="ztf-import-config">导入</button>' +
               '<input type="file" id="ztf-import-file" accept="application/json,.json" style="display:none;">' +
             '</div>' +
-          '</div>' +
-          '<p class="ztf-hint">' +
-            '判定顺序：作者黑名单 > 白名单 > 分类分级 > 问题正则(仅严格档/未命中) > 默认行为。关键词子串匹配，不区分大小写。' +
-          '</p>';
-
+          '</div>';
+      } else if (t.id === 'categoryRules') {
+        let html = '';
+        const cats = activeCategories.length > 0 ? activeCategories : [];
+        for (const c of cats) {
+          const wl = (config.categoryWhitelist && config.categoryWhitelist[c.id]) || [];
+          const bl = (config.categoryBlacklist && config.categoryBlacklist[c.id]) || [];
+          html +=
+            '<fieldset style="margin-bottom:10px;border:1px solid #ddd;border-radius:6px;padding:8px;">' +
+              '<legend style="font-size:13px;font-weight:600;color:#1772f6;">' + c.name + '</legend>' +
+              '<label class="ztf-field-label">白名单（每行一个，命中则放行）</label>' +
+              '<textarea class="ztf-textarea" data-cat-wl="' + c.id + '" style="margin-bottom:8px;">' + escapeHtml(wl.join(NEWLINE)) + '</textarea>' +
+              '<label class="ztf-field-label">黑名单（每行一个，命中则屏蔽）</label>' +
+              '<textarea class="ztf-textarea" data-cat-bl="' + c.id + '">' + escapeHtml(bl.join(NEWLINE)) + '</textarea>' +
+            '</fieldset>';
+        }
+        if (cats.length === 0) html = '<p class="ztf-hint">暂无分类，请到设置中同步分类规则。</p>';
+        div.innerHTML = html;
       } else {
         const value = config[t.id] || [];
         div.innerHTML =
@@ -1253,35 +1265,7 @@
       });
     }
 
-    const catLevelsDiv = panel.querySelector('#ztf-cat-levels');
     const syncCatsBtn = panel.querySelector('#ztf-sync-cats');
-    const LEVEL_OPTIONS = [
-      { value: 'low', label: '低(放行)' },
-      { value: 'basic', label: '中(基础)' },
-      { value: 'high', label: '高(严格)' },
-    ];
-    function renderCatLevels(cats) {
-      if (!catLevelsDiv) return;
-      const levels = config.categoryLevel || {};
-      catLevelsDiv.innerHTML = cats.map((c) => {
-        const cur = levels[c.id] || 'high';
-        const opts = LEVEL_OPTIONS.map((o) =>
-          '<option value="' + o.value + '"' + (cur === o.value ? ' selected' : '') + '>' + o.label + '</option>'
-        ).join('');
-        return '<label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#333;">' + c.name +
-          '<select class="ztf-cat-level" data-cat="' + c.id + '" style="font-size:13px;">' + opts + '</select></label>';
-      }).join('');
-    }
-    if (catLevelsDiv) {
-      if (activeCategories.length > 0) renderCatLevels(activeCategories);
-      fetchRemoteFile('categories.json', (res) => {
-        if (res.ok && Array.isArray(res.data.categories)) {
-          activeCategories = res.data.categories;
-          try { GM_setValue('ztf_categories', activeCategories); } catch (e) { /* ignore */ }
-          renderCatLevels(activeCategories);
-        }
-      });
-    }
     if (syncCatsBtn) {
       syncCatsBtn.addEventListener('click', () => {
         syncCatsBtn.disabled = true;
@@ -1301,7 +1285,7 @@
                 config.categoryBlacklist[c.id] = c.blacklist.filter((v) => v && typeof v === 'string');
               }
             }
-            renderCatLevels(activeCategories);
+            saveConfig(config);
             const statusEl = panel.querySelector('#ztf-remote-status');
             if (statusEl) statusEl.textContent = '同步成功，' + activeCategories.length + ' 个分类。';
           } else {
@@ -1371,20 +1355,26 @@
         config.nonTechAuthors = (config.nonTechAuthors || []).filter((a) => !authorConflict.includes(a));
         window.alert('以下作者同时在黑白名单，已从黑名单移除（白名单优先）：\n' + authorConflict.join('、'));
       }
-      const radio = panel.querySelector('input[name="defaultAction"]:checked');
-      if (radio) config.defaultAction = radio.value;
+      const actionSelect = panel.querySelector('#ztf-default-action');
+      if (actionSelect && ['low', 'basic', 'high'].includes(actionSelect.value)) {
+        config.defaultAction = actionSelect.value;
+      }
       if (debugToggle) config.debug = debugToggle.classList.contains('on');
       if (msgToggle) config.messageShieldEnabled = msgToggle.classList.contains('on');
-      const catLevelSelects = panel.querySelectorAll('.ztf-cat-level');
-      if (catLevelSelects && catLevelSelects.length > 0) {
-        if (!config.categoryLevel) config.categoryLevel = {};
-        catLevelSelects.forEach((sel) => {
-          const catId = sel.dataset.cat;
-          if (catId && ['low', 'basic', 'high'].includes(sel.value)) {
-            config.categoryLevel[catId] = sel.value;
-          }
-        });
-      }
+      const catWlTextareas = panel.querySelectorAll('textarea[data-cat-wl]');
+      catWlTextareas.forEach((ta) => {
+        const catId = ta.dataset.catWl;
+        const arr = ta.value.split(NEWLINE).map((s) => s.trim()).filter((s) => s.length > 0);
+        if (!config.categoryWhitelist) config.categoryWhitelist = {};
+        config.categoryWhitelist[catId] = Array.from(new Set(arr));
+      });
+      const catBlTextareas = panel.querySelectorAll('textarea[data-cat-bl]');
+      catBlTextareas.forEach((ta) => {
+        const catId = ta.dataset.catBl;
+        const arr = ta.value.split(NEWLINE).map((s) => s.trim()).filter((s) => s.length > 0);
+        if (!config.categoryBlacklist) config.categoryBlacklist = {};
+        config.categoryBlacklist[catId] = Array.from(new Set(arr));
+      });
       saveConfig(config);
       document.documentElement.dataset.ztfMsgShield = config.messageShieldEnabled !== false ? '1' : '0';
       document.querySelectorAll('[data-ztf-status]').forEach((el) => resetCardAll(el));
