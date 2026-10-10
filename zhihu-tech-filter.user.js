@@ -2,7 +2,7 @@
 // @name         zh文章屏蔽器
 // @name:en      Zhihu Article Shield
 // @namespace    https://github.com/imenk2/zhihu-shield
-// @version      0.0.62
+// @version      0.0.63
 // @description  自动屏蔽zh推荐/热榜/专栏/圈子非技术类文章，支持作者/关键词/标题黑白名单过滤，冲突黄色折叠栏一键消冲突
 // @author       imenk2
 // @match        https://www.zhihu.com/*
@@ -451,6 +451,8 @@
       '.ztf-hint{font-size:12px;color:var(--ztf-muted);margin:8px 0 0;line-height:1.6;}',
       '.ztf-cat-fieldset{margin-bottom:12px;border:1px solid var(--ztf-border);border-radius:10px;padding:12px;}',
       '.ztf-cat-legend{font-size:14px;font-weight:600;color:var(--ztf-primary);padding:0 6px;}',
+      '.ztf-two-col{display:flex;gap:16px;}',
+      '.ztf-col{flex:1;min-width:0;}',
       '.ztf-fab{position:fixed;z-index:99996;width:40px;height:40px;border-radius:50%;background:var(--ztf-primary);color:#fff;border:none;cursor:pointer;font-size:20px;line-height:1;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity 0.2s;user-select:none;}',
       '.ztf-fab.show{opacity:1;pointer-events:auto;}',
       '.ztf-fab.dragging{transition:none;cursor:grabbing;}',
@@ -1211,14 +1213,12 @@
             '<div class="ztf-toggle' + (config.debug ? ' on' : '') + '" id="ztf-debug-toggle"></div>' +
           '</div>' +
           '<div class="ztf-settings-row">' +
-            '<div><div class="ztf-settings-label">同步分类规则</div>' +
-            '<div class="ztf-settings-desc">从远程更新分类定义（关键词），不影响本地黑白名单</div></div>' +
-            '<button class="ztf-btn ztf-btn-primary" id="ztf-sync-cats">同步</button>' +
-          '</div>' +
-          '<div class="ztf-settings-row">' +
-            '<div><div class="ztf-settings-label">清理本地缓存</div>' +
-            '<div class="ztf-settings-desc">清除旧版分类缓存，防止旧数据残留</div></div>' +
-            '<button class="ztf-btn" id="ztf-clear-cache">清理</button>' +
+            '<div><div class="ztf-settings-label">规则处理</div>' +
+            '<div class="ztf-settings-desc">同步远程分类定义 / 清除旧版缓存</div></div>' +
+            '<div class="ztf-btn-group">' +
+              '<button class="ztf-btn ztf-btn-primary" id="ztf-sync-cats">同步</button>' +
+              '<button class="ztf-btn" id="ztf-clear-cache">清理</button>' +
+            '</div>' +
           '</div>' +
           '<div class="ztf-settings-row"><div class="ztf-settings-label" id="ztf-remote-status" style="color:var(--ztf-muted);font-weight:normal;"></div></div>' +
           '<div class="ztf-settings-row">' +
@@ -1236,34 +1236,36 @@
         const c = cats.find((cat) => cat.id === activeCatId);
         const techAuthorsVal = (config.techAuthors || []).join(NEWLINE);
         const nonTechAuthorsVal = (config.nonTechAuthors || []).join(NEWLINE);
-        html =
+        let leftHtml =
           '<fieldset class="ztf-cat-fieldset">' +
             '<legend class="ztf-cat-legend">作者白名单</legend>' +
-            '<label class="ztf-field-label">每行一个知乎用户名，命中则放行</label>' +
-            '<textarea class="ztf-textarea" data-field="techAuthors" style="min-height:120px;">' + escapeHtml(techAuthorsVal) + '</textarea>' +
+            '<label class="ztf-field-label">每行一个用户名，命中则放行</label>' +
+            '<textarea class="ztf-textarea" data-field="techAuthors" style="min-height:100px;">' + escapeHtml(techAuthorsVal) + '</textarea>' +
           '</fieldset>' +
           '<fieldset class="ztf-cat-fieldset">' +
             '<legend class="ztf-cat-legend">作者黑名单</legend>' +
-            '<label class="ztf-field-label">每行一个知乎用户名，命中则屏蔽</label>' +
-            '<textarea class="ztf-textarea" data-field="nonTechAuthors" style="min-height:120px;">' + escapeHtml(nonTechAuthorsVal) + '</textarea>' +
+            '<label class="ztf-field-label">每行一个用户名，命中则屏蔽</label>' +
+            '<textarea class="ztf-textarea" data-field="nonTechAuthors" style="min-height:100px;">' + escapeHtml(nonTechAuthorsVal) + '</textarea>' +
           '</fieldset>';
+        let rightHtml = '';
         if (c) {
           const wl = (config.categoryWhitelist && config.categoryWhitelist[c.id]) || [];
           const bl = (config.categoryBlacklist && config.categoryBlacklist[c.id]) || [];
-          html +=
+          rightHtml =
             '<fieldset class="ztf-cat-fieldset">' +
               '<legend class="ztf-cat-legend">' + c.name + ' — 白名单</legend>' +
               '<label class="ztf-field-label">每行一个，命中则放行</label>' +
-              '<textarea class="ztf-textarea" data-cat-wl="' + c.id + '" style="min-height:160px;">' + escapeHtml(wl.join(NEWLINE)) + '</textarea>' +
+              '<textarea class="ztf-textarea" data-cat-wl="' + c.id + '" style="min-height:100px;">' + escapeHtml(wl.join(NEWLINE)) + '</textarea>' +
             '</fieldset>' +
             '<fieldset class="ztf-cat-fieldset">' +
               '<legend class="ztf-cat-legend">' + c.name + ' — 黑名单</legend>' +
               '<label class="ztf-field-label">每行一个，命中则屏蔽</label>' +
-              '<textarea class="ztf-textarea" data-cat-bl="' + c.id + '" style="min-height:160px;">' + escapeHtml(bl.join(NEWLINE)) + '</textarea>' +
+              '<textarea class="ztf-textarea" data-cat-bl="' + c.id + '" style="min-height:100px;">' + escapeHtml(bl.join(NEWLINE)) + '</textarea>' +
             '</fieldset>';
         } else {
-          html += '<p class="ztf-hint">暂无分类，请到设置中同步分类规则。</p>';
+          rightHtml = '<p class="ztf-hint">暂无分类，请到设置中同步分类规则。</p>';
         }
+        html = '<div class="ztf-two-col"><div class="ztf-col">' + leftHtml + '</div><div class="ztf-col">' + rightHtml + '</div></div>';
         div.innerHTML = html;
 
       }
@@ -1292,35 +1294,36 @@
           const c = cats.find((cat) => cat.id === config.activeCategoryId);
           const techAuthorsVal = (config.techAuthors || []).join(NEWLINE);
           const nonTechAuthorsVal = (config.nonTechAuthors || []).join(NEWLINE);
-          let html =
+          let leftHtml =
             '<fieldset class="ztf-cat-fieldset">' +
               '<legend class="ztf-cat-legend">作者白名单</legend>' +
-              '<label class="ztf-field-label">每行一个知乎用户名，命中则放行</label>' +
-              '<textarea class="ztf-textarea" data-field="techAuthors" style="min-height:120px;">' + escapeHtml(techAuthorsVal) + '</textarea>' +
+              '<label class="ztf-field-label">每行一个用户名，命中则放行</label>' +
+              '<textarea class="ztf-textarea" data-field="techAuthors" style="min-height:100px;">' + escapeHtml(techAuthorsVal) + '</textarea>' +
             '</fieldset>' +
             '<fieldset class="ztf-cat-fieldset">' +
               '<legend class="ztf-cat-legend">作者黑名单</legend>' +
-              '<label class="ztf-field-label">每行一个知乎用户名，命中则屏蔽</label>' +
-              '<textarea class="ztf-textarea" data-field="nonTechAuthors" style="min-height:120px;">' + escapeHtml(nonTechAuthorsVal) + '</textarea>' +
+              '<label class="ztf-field-label">每行一个用户名，命中则屏蔽</label>' +
+              '<textarea class="ztf-textarea" data-field="nonTechAuthors" style="min-height:100px;">' + escapeHtml(nonTechAuthorsVal) + '</textarea>' +
             '</fieldset>';
+          let rightHtml = '';
           if (c) {
             const wl = (config.categoryWhitelist && config.categoryWhitelist[c.id]) || [];
             const bl = (config.categoryBlacklist && config.categoryBlacklist[c.id]) || [];
-            html +=
+            rightHtml =
               '<fieldset class="ztf-cat-fieldset">' +
                 '<legend class="ztf-cat-legend">' + c.name + ' — 白名单</legend>' +
                 '<label class="ztf-field-label">每行一个，命中则放行</label>' +
-                '<textarea class="ztf-textarea" data-cat-wl="' + c.id + '" style="min-height:160px;">' + escapeHtml(wl.join(NEWLINE)) + '</textarea>' +
+                '<textarea class="ztf-textarea" data-cat-wl="' + c.id + '" style="min-height:100px;">' + escapeHtml(wl.join(NEWLINE)) + '</textarea>' +
               '</fieldset>' +
               '<fieldset class="ztf-cat-fieldset">' +
                 '<legend class="ztf-cat-legend">' + c.name + ' — 黑名单</legend>' +
                 '<label class="ztf-field-label">每行一个，命中则屏蔽</label>' +
-                '<textarea class="ztf-textarea" data-cat-bl="' + c.id + '" style="min-height:160px;">' + escapeHtml(bl.join(NEWLINE)) + '</textarea>' +
+                '<textarea class="ztf-textarea" data-cat-bl="' + c.id + '" style="min-height:100px;">' + escapeHtml(bl.join(NEWLINE)) + '</textarea>' +
               '</fieldset>';
           } else {
-            html += '<p class="ztf-hint">暂无分类，请到设置中同步分类规则。</p>';
+            rightHtml = '<p class="ztf-hint">暂无分类，请到设置中同步分类规则。</p>';
           }
-          catContent.innerHTML = html;
+          catContent.innerHTML = '<div class="ztf-two-col"><div class="ztf-col">' + leftHtml + '</div><div class="ztf-col">' + rightHtml + '</div></div>';
         }
       });
     }
