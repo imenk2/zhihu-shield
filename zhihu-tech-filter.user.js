@@ -2,7 +2,7 @@
 // @name         zh文章屏蔽器
 // @name:en      Zhihu Article Shield
 // @namespace    https://github.com/imenk2/zhihu-shield
-// @version      0.0.61
+// @version      0.0.62
 // @description  自动屏蔽zh推荐/热榜/专栏/圈子非技术类文章，支持作者/关键词/标题黑白名单过滤，冲突黄色折叠栏一键消冲突
 // @author       imenk2
 // @match        https://www.zhihu.com/*
@@ -1348,7 +1348,14 @@
         syncCatsBtn.textContent = '同步中...';
         fetchRemoteFile('categories.json', (res) => {
           if (res.ok && Array.isArray(res.data.categories)) {
-            activeCategories = res.data.categories;
+            const seen = new Set();
+            activeCategories = res.data.categories.filter((c) => {
+              if (c && NEW_CAT_IDS.includes(c.id) && !seen.has(c.id)) {
+                seen.add(c.id);
+                return true;
+              }
+              return false;
+            });
             try { GM_setValue('ztf_categories', activeCategories); } catch (e) { /* ignore */ }
             const statusEl = panel.querySelector('#ztf-remote-status');
             if (statusEl) statusEl.textContent = '同步成功，已更新 ' + activeCategories.length + ' 个分类定义。';
