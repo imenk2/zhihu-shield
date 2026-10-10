@@ -2,7 +2,7 @@
 // @name         zh文章屏蔽器
 // @name:en      Zhihu Article Shield
 // @namespace    https://github.com/imenk2/zhihu-shield
-// @version      0.0.56
+// @version      0.0.57
 // @description  自动屏蔽zh推荐/热榜/专栏/圈子非技术类文章，支持作者/关键词/标题黑白名单过滤，冲突黄色折叠栏一键消冲突
 // @author       imenk2
 // @match        https://www.zhihu.com/*
@@ -1204,7 +1204,7 @@
           '</div>' +
           '<div class="ztf-settings-row">' +
             '<div><div class="ztf-settings-label">同步分类规则</div>' +
-            '<div class="ztf-settings-desc">从远程同步当前分类的黑白名单</div></div>' +
+            '<div class="ztf-settings-desc">从远程更新分类定义（关键词），不影响本地黑白名单</div></div>' +
             '<button class="ztf-btn ztf-btn-primary" id="ztf-sync-cats">同步</button>' +
           '</div>' +
           '<div class="ztf-settings-row"><div class="ztf-settings-label" id="ztf-remote-status" style="color:var(--ztf-muted);font-weight:normal;"></div></div>' +
@@ -1310,44 +1310,16 @@
     const syncCatsBtn = panel.querySelector('#ztf-sync-cats');
     if (syncCatsBtn) {
       syncCatsBtn.addEventListener('click', () => {
-        const activeCatId = config.activeCategoryId || '';
-        const activeCat = activeCategories.find((c) => c.id === activeCatId);
-        if (!activeCat) {
-          const statusEl = panel.querySelector('#ztf-remote-status');
-          if (statusEl) statusEl.textContent = '请先选择当前分类。';
-          return;
-        }
+
         syncCatsBtn.disabled = true;
         const oldText = syncCatsBtn.textContent;
         syncCatsBtn.textContent = '同步中...';
         fetchRemoteFile('categories.json', (res) => {
           if (res.ok && Array.isArray(res.data.categories)) {
-            const remoteCat = res.data.categories.find((c) => c.id === activeCatId);
-            if (remoteCat) {
-              if (!config.categoryWhitelist) config.categoryWhitelist = {};
-              if (!config.categoryBlacklist) config.categoryBlacklist = {};
-              config.categoryWhitelist[activeCatId] = Array.isArray(remoteCat.whitelist) ? remoteCat.whitelist.filter((v) => v && typeof v === 'string') : [];
-              config.categoryBlacklist[activeCatId] = Array.isArray(remoteCat.blacklist) ? remoteCat.blacklist.filter((v) => v && typeof v === 'string') : [];
-              saveConfig(config);
-              const statusEl = panel.querySelector('#ztf-remote-status');
-              if (statusEl) statusEl.textContent = '同步成功，已更新「' + remoteCat.name + '」分类规则。';
-              const catContent = body.querySelector('.ztf-tab-content[data-content="categoryRules"]');
-              if (catContent) {
-                const wl = config.categoryWhitelist[activeCatId] || [];
-                const bl = config.categoryBlacklist[activeCatId] || [];
-                catContent.innerHTML =
-                  '<fieldset class="ztf-cat-fieldset">' +
-                    '<legend class="ztf-cat-legend">' + remoteCat.name + '</legend>' +
-                    '<label class="ztf-field-label">白名单（每行一个，命中则放行）</label>' +
-                    '<textarea class="ztf-textarea" data-cat-wl="' + activeCatId + '" style="margin-bottom:10px;">' + escapeHtml(wl.join(NEWLINE)) + '</textarea>' +
-                    '<label class="ztf-field-label">黑名单（每行一个，命中则屏蔽）</label>' +
-                    '<textarea class="ztf-textarea" data-cat-bl="' + activeCatId + '">' + escapeHtml(bl.join(NEWLINE)) + '</textarea>' +
-                  '</fieldset>';
-              }
-            } else {
-              const statusEl = panel.querySelector('#ztf-remote-status');
-              if (statusEl) statusEl.textContent = '远程未找到该分类。';
-            }
+            activeCategories = res.data.categories;
+            try { GM_setValue('ztf_categories', activeCategories); } catch (e) { /* ignore */ }
+            const statusEl = panel.querySelector('#ztf-remote-status');
+            if (statusEl) statusEl.textContent = '同步成功，已更新 ' + activeCategories.length + ' 个分类定义。';
           } else {
             const statusEl = panel.querySelector('#ztf-remote-status');
             if (statusEl) statusEl.textContent = '同步失败：' + res.error;
