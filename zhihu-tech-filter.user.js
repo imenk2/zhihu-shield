@@ -2,7 +2,7 @@
 // @name         zh文章屏蔽器
 // @name:en      Zhihu Article Shield
 // @namespace    https://github.com/imenk2/zhihu-shield
-// @version      0.0.54
+// @version      0.0.55
 // @description  自动屏蔽zh推荐/热榜/专栏/圈子非技术类文章，支持作者/关键词/标题黑白名单过滤，冲突黄色折叠栏一键消冲突
 // @author       imenk2
 // @match        https://www.zhihu.com/*
@@ -87,6 +87,7 @@
     nonTechAuthors: [],
     categoryWhitelist: {},
     categoryBlacklist: {},
+    activeCategoryId: 'tech',
     questionShieldEnabled: true,
     messageShieldEnabled: true,
     defaultAction: 'high',
@@ -417,48 +418,53 @@
       '.ztf-dot-menu{position:fixed;z-index:99997;background:#fff;border:1px solid #ebeced;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,0.15);padding:4px 0;min-width:140px;font-size:13px;}',
       '.ztf-dot-item{padding:7px 14px;cursor:pointer;color:#1a1a1a;}',
       '.ztf-dot-item:hover{background:#f6f6f6;}',
-      '.ztf-panel-mask{position:fixed;inset:0;background:rgba(0,0,0,0.3);z-index:99998;}',
-      '.ztf-panel{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:520px;max-width:92vw;max-height:86vh;background:#fff;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.2);z-index:99999;display:flex;flex-direction:column;overflow:hidden;font-family:inherit;}',
-      '.ztf-panel-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #ebeced;}',
-      '.ztf-panel-title{font-size:16px;font-weight:600;color:#1a1a1a;}',
-      '.ztf-panel-close{cursor:pointer;font-size:20px;color:#8590a6;line-height:1;padding:4px;border:none;background:none;}',
-      '.ztf-panel-close:hover{color:#1a1a1a;}',
-      '.ztf-panel-tabs{display:flex;flex-wrap:wrap;justify-content:space-between;padding:10px 18px;border-bottom:1px solid #f0f2f5;}',
-      '.ztf-tab{padding:5px 12px;border:1px solid #ebeced;border-radius:14px;background:#fff;color:#646464;cursor:pointer;font-size:13px;}',
-      '.ztf-tab.active{background:#1772f6;color:#fff;border-color:#1772f6;}',
-      '.ztf-panel-body{flex:1;overflow-y:auto;padding:14px 18px;}',
-      '.ztf-textarea{width:100%;min-height:240px;border:1px solid #d9d9d9;border-radius:4px;padding:8px;font-size:13px;font-family:monospace;resize:vertical;box-sizing:border-box;line-height:1.6;}',
-      '.ztf-field-label{font-size:13px;color:#646464;margin-bottom:6px;display:block;}',
-      '.ztf-settings-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f6f6f6;}',
-      '.ztf-settings-label{font-size:14px;color:#1a1a1a;}',
-      '.ztf-settings-desc{font-size:12px;color:#999;margin-top:2px;}',
-      '.ztf-toggle{position:relative;width:40px;height:22px;background:#ccc;border-radius:11px;cursor:pointer;transition:background 0.2s;flex-shrink:0;}',
-      '.ztf-toggle.on{background:#1772f6;}',
-      '.ztf-toggle::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;background:#fff;border-radius:50%;transition:transform 0.2s;}',
+      '.ztf-panel-mask{position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:99998;backdrop-filter:blur(2px);}',
+      '.ztf-panel{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:540px;max-width:92vw;max-height:86vh;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,0.3);z-index:99999;display:flex;flex-direction:column;overflow:hidden;font-family:system-ui,-apple-system,sans-serif;color-scheme:light dark;--ztf-primary:#1772f6;--ztf-bg:light-dark(#fff,#1e1e1e);--ztf-bg-2:light-dark(#fafafa,#252525);--ztf-text:light-dark(#1a1a1a,#e0e0e0);--ztf-muted:light-dark(#8590a6,#999);--ztf-border:light-dark(#ebeced,#3a3a3a);--ztf-border-2:light-dark(#f0f2f5,#333);--ztf-hover:light-dark(#f6f6f6,#2a2a2a);--ztf-input-bg:light-dark(#fff,#2a2a2a);--ztf-input-border:light-dark(#d9d9d9,#555);background:var(--ztf-bg);color:var(--ztf-text);accent-color:var(--ztf-primary);}',
+      '.ztf-panel-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--ztf-border);}',
+      '.ztf-panel-title{font-size:17px;font-weight:600;color:var(--ztf-text);}',
+      '.ztf-panel-close{cursor:pointer;font-size:22px;color:var(--ztf-muted);line-height:1;padding:4px 8px;border:none;background:none;border-radius:6px;}',
+      '.ztf-panel-close:hover{color:var(--ztf-text);background:var(--ztf-hover);}',
+      '.ztf-panel-tabs{display:flex;gap:6px;padding:12px 20px;border-bottom:1px solid var(--ztf-border-2);}',
+      '.ztf-tab{padding:6px 14px;border:1px solid var(--ztf-border);border-radius:18px;background:var(--ztf-bg);color:var(--ztf-muted);cursor:pointer;font-size:13px;transition:all 0.15s;}',
+      '.ztf-tab:hover{border-color:var(--ztf-primary);color:var(--ztf-primary);}',
+      '.ztf-tab.active{background:var(--ztf-primary);color:#fff;border-color:var(--ztf-primary);}',
+      '.ztf-panel-body{flex:1;overflow-y:auto;padding:16px 20px;}',
+      '.ztf-textarea{width:100%;min-height:200px;border:1px solid var(--ztf-input-border);border-radius:8px;padding:10px;font-size:13px;font-family:monospace;resize:vertical;box-sizing:border-box;line-height:1.6;background:var(--ztf-input-bg);color:var(--ztf-text);}',
+      '.ztf-textarea:focus{outline:none;border-color:var(--ztf-primary);box-shadow:0 0 0 2px rgba(23,114,246,0.15);}',
+      '.ztf-field-label{font-size:13px;color:var(--ztf-muted);margin-bottom:6px;display:block;}',
+      '.ztf-settings-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--ztf-border-2);gap:12px;}',
+      '.ztf-settings-label{font-size:14px;color:var(--ztf-text);}',
+      '.ztf-settings-desc{font-size:12px;color:var(--ztf-muted);margin-top:2px;}',
+      '.ztf-toggle{position:relative;width:42px;height:24px;background:light-dark(#ccc,#555);border-radius:12px;cursor:pointer;transition:background 0.2s;flex-shrink:0;}',
+      '.ztf-toggle.on{background:var(--ztf-primary);}',
+      '.ztf-toggle::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;background:#fff;border-radius:50%;transition:transform 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.2);}',
       '.ztf-toggle.on::after{transform:translateX(18px);}',
-      '.ztf-radio-group{display:flex;gap:12px;}',
-      '.ztf-radio{display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;color:#333;}',
-      'html[data-ztf-theme="dark"] .ztf-radio{color:#ccc;}',
-      '.ztf-panel-footer{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-top:1px solid #ebeced;background:#fafafa;}',
-      '.ztf-stats{font-size:12px;color:#8590a6;}',
-      '.ztf-stats b{color:#1a1a1a;}',
-      '.ztf-btn{padding:6px 16px;border-radius:4px;border:1px solid #d9d9d9;background:#fff;color:#1a1a1a;cursor:pointer;font-size:13px;margin-left:8px;}',
-      '.ztf-btn:hover{border-color:#1772f6;color:#1772f6;}',
-      '.ztf-btn-primary{background:#1772f6;color:#fff;border-color:#1772f6;}',
+      '.ztf-select{font-size:13px;padding:6px 10px;border:1px solid var(--ztf-input-border);border-radius:8px;background:var(--ztf-input-bg);color:var(--ztf-text);cursor:pointer;min-width:140px;}',
+      '.ztf-select:focus{outline:none;border-color:var(--ztf-primary);}',
+      '.ztf-panel-footer{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-top:1px solid var(--ztf-border);background:var(--ztf-bg-2);}',
+      '.ztf-stats{font-size:12px;color:var(--ztf-muted);}',
+      '.ztf-stats b{color:var(--ztf-text);}',
+      '.ztf-btn{padding:7px 18px;border-radius:8px;border:1px solid var(--ztf-input-border);background:var(--ztf-bg);color:var(--ztf-text);cursor:pointer;font-size:13px;transition:all 0.15s;}',
+      '.ztf-btn:hover{border-color:var(--ztf-primary);color:var(--ztf-primary);}',
+      '.ztf-btn:disabled{opacity:0.5;cursor:not-allowed;}',
+      '.ztf-btn-primary{background:var(--ztf-primary);color:#fff;border-color:var(--ztf-primary);}',
       '.ztf-btn-primary:hover{background:#0d6ddb;color:#fff;}',
+      '.ztf-btn-group{display:flex;gap:8px;}',
       '.ztf-tab-content{display:none;}',
       '.ztf-tab-content.active{display:block;}',
-      '.ztf-hint{font-size:12px;color:#999;margin:6px 0 0;line-height:1.6;}',
-      '.ztf-fab{position:fixed;z-index:99996;width:40px;height:40px;border-radius:50%;background:#1772f6;color:#fff;border:none;cursor:pointer;font-size:20px;line-height:1;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity 0.2s;user-select:none;}',
+      '.ztf-hint{font-size:12px;color:var(--ztf-muted);margin:8px 0 0;line-height:1.6;}',
+      '.ztf-cat-fieldset{margin-bottom:12px;border:1px solid var(--ztf-border);border-radius:10px;padding:12px;}',
+      '.ztf-cat-legend{font-size:14px;font-weight:600;color:var(--ztf-primary);padding:0 6px;}',
+      '.ztf-fab{position:fixed;z-index:99996;width:40px;height:40px;border-radius:50%;background:var(--ztf-primary);color:#fff;border:none;cursor:pointer;font-size:20px;line-height:1;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity 0.2s;user-select:none;}',
       '.ztf-fab.show{opacity:1;pointer-events:auto;}',
       '.ztf-fab.dragging{transition:none;cursor:grabbing;}',
       '.ztf-scan-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;}',
       '.ztf-scan-btn{margin-left:0;}',
-      '.ztf-candidate-dialog{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:420px;max-width:92vw;max-height:70vh;background:#fff;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.2);z-index:100000;display:flex;flex-direction:column;overflow:hidden;font-family:inherit;}',
-      '.ztf-candidate-body{flex:1;overflow-y:auto;padding:10px 18px;}',
-      '.ztf-candidate-item{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f6f6f6;cursor:pointer;font-size:13px;}',
-      '.ztf-candidate-word{flex:1;color:#1a1a1a;}',
-      '.ztf-candidate-count{color:#999;font-size:12px;}',
+      '.ztf-candidate-dialog{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:420px;max-width:92vw;max-height:70vh;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,0.3);z-index:100000;display:flex;flex-direction:column;overflow:hidden;font-family:system-ui,-apple-system,sans-serif;color-scheme:light dark;background:light-dark(#fff,#1e1e1e);color:light-dark(#1a1a1a,#e0e0e0);accent-color:#1772f6;}',
+      '.ztf-candidate-body{flex:1;overflow-y:auto;padding:12px 20px;}',
+      '.ztf-candidate-item{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid light-dark(#f6f6f6,#333);cursor:pointer;font-size:13px;}',
+      '.ztf-candidate-word{flex:1;color:light-dark(#1a1a1a,#e0e0e0);}',
+      '.ztf-candidate-count{color:light-dark(#999,#777);font-size:12px;}',
     ].join(NEWLINE);
     document.head.appendChild(style);
   }
@@ -1051,6 +1057,7 @@
       nonTechAuthors: config.nonTechAuthors || [],
       questionPatterns: getQuestionPatterns(),
       defaultAction: config.defaultAction || 'high',
+      activeCategoryId: config.activeCategoryId || 'tech',
       debug: !!config.debug,
       messageShieldEnabled: config.messageShieldEnabled !== false,
       questionShieldEnabled: config.questionShieldEnabled !== false,
@@ -1092,6 +1099,9 @@
           if (da === 'pass') config.defaultAction = 'low';
           else if (da === 'block') config.defaultAction = 'high';
           else if (['low', 'basic', 'high'].includes(da)) config.defaultAction = da;
+        }
+        if (typeof data.activeCategoryId === 'string' && data.activeCategoryId) {
+          config.activeCategoryId = data.activeCategoryId;
         }
         if (Array.isArray(data.techAuthors)) config.techAuthors = data.techAuthors.filter((v) => v && typeof v === 'string');
         if (Array.isArray(data.nonTechAuthors)) config.nonTechAuthors = data.nonTechAuthors.filter((v) => v && typeof v === 'string');
@@ -1170,6 +1180,9 @@
       div.dataset.content = t.id;
 
       if (t.id === 'settings') {
+        const catOpts = activeCategories.map((c) =>
+          '<option value="' + c.id + '"' + (config.activeCategoryId === c.id ? ' selected' : '') + '>' + c.name + '</option>'
+        ).join('');
         const actionOpts = [
           { v: 'low', l: '低 (放行)' },
           { v: 'basic', l: '中 (基础：问题正则屏蔽，其余放行)' },
@@ -1177,8 +1190,14 @@
         ].map((o) => '<option value="' + o.v + '"' + (config.defaultAction === o.v ? ' selected' : '') + '>' + o.l + '</option>').join('');
         div.innerHTML =
           '<div class="ztf-settings-row">' +
-            '<div><div class="ztf-settings-label">未命中规则时的默认行为</div></div>' +
-            '<select id="ztf-default-action" style="width:100%;font-size:13px;padding:4px;">' + actionOpts + '</select>' +
+            '<div><div class="ztf-settings-label">当前分类</div>' +
+            '<div class="ztf-settings-desc">选择生效的分类规则</div></div>' +
+            '<select class="ztf-select" id="ztf-active-cat">' + catOpts + '</select>' +
+          '</div>' +
+          '<div class="ztf-settings-row">' +
+            '<div><div class="ztf-settings-label">等级</div>' +
+            '<div class="ztf-settings-desc">未命中规则时的默认行为</div></div>' +
+            '<select class="ztf-select" id="ztf-default-action">' + actionOpts + '</select>' +
           '</div>' +
           '<div class="ztf-settings-row">' +
             '<div><div class="ztf-settings-label">屏蔽私信未读提示</div></div>' +
@@ -1191,13 +1210,13 @@
           '</div>' +
           '<div class="ztf-settings-row">' +
             '<div><div class="ztf-settings-label">同步分类规则</div>' +
-            '<div class="ztf-settings-desc">从远程拉取分类黑白名单与问题正则</div></div>' +
-            '<div><button class="ztf-btn ztf-btn-primary" id="ztf-sync-cats">同步</button></div>' +
+            '<div class="ztf-settings-desc">从远程同步当前分类的黑白名单</div></div>' +
+            '<button class="ztf-btn ztf-btn-primary" id="ztf-sync-cats">同步</button>' +
           '</div>' +
-          '<div class="ztf-settings-row"><div><div class="ztf-settings-label" id="ztf-remote-status" style="color:#8590a6;font-weight:normal;"></div></div></div>' +
+          '<div class="ztf-settings-row"><div class="ztf-settings-label" id="ztf-remote-status" style="color:var(--ztf-muted);font-weight:normal;"></div></div>' +
           '<div class="ztf-settings-row">' +
             '<div><div class="ztf-settings-label">配置备份</div></div>' +
-            '<div style="display:flex;gap:8px;">' +
+            '<div class="ztf-btn-group">' +
               '<button class="ztf-btn" id="ztf-export-config">导出</button>' +
               '<button class="ztf-btn" id="ztf-import-config">导入</button>' +
               '<input type="file" id="ztf-import-file" accept="application/json,.json" style="display:none;">' +
@@ -1206,19 +1225,22 @@
       } else if (t.id === 'categoryRules') {
         let html = '';
         const cats = activeCategories.length > 0 ? activeCategories : [];
-        for (const c of cats) {
+        const activeCatId = config.activeCategoryId || (cats[0] && cats[0].id) || '';
+        const c = cats.find((cat) => cat.id === activeCatId);
+        if (c) {
           const wl = (config.categoryWhitelist && config.categoryWhitelist[c.id]) || [];
           const bl = (config.categoryBlacklist && config.categoryBlacklist[c.id]) || [];
-          html +=
-            '<fieldset style="margin-bottom:10px;border:1px solid #ddd;border-radius:6px;padding:8px;">' +
-              '<legend style="font-size:13px;font-weight:600;color:#1772f6;">' + c.name + '</legend>' +
+          html =
+            '<fieldset class="ztf-cat-fieldset">' +
+              '<legend class="ztf-cat-legend">' + c.name + '</legend>' +
               '<label class="ztf-field-label">白名单（每行一个，命中则放行）</label>' +
-              '<textarea class="ztf-textarea" data-cat-wl="' + c.id + '" style="margin-bottom:8px;">' + escapeHtml(wl.join(NEWLINE)) + '</textarea>' +
+              '<textarea class="ztf-textarea" data-cat-wl="' + c.id + '" style="margin-bottom:10px;">' + escapeHtml(wl.join(NEWLINE)) + '</textarea>' +
               '<label class="ztf-field-label">黑名单（每行一个，命中则屏蔽）</label>' +
               '<textarea class="ztf-textarea" data-cat-bl="' + c.id + '">' + escapeHtml(bl.join(NEWLINE)) + '</textarea>' +
             '</fieldset>';
+        } else {
+          html = '<p class="ztf-hint">暂无分类，请到设置中同步分类规则。</p>';
         }
-        if (cats.length === 0) html = '<p class="ztf-hint">暂无分类，请到设置中同步分类规则。</p>';
         div.innerHTML = html;
       } else {
         const value = config[t.id] || [];
@@ -1251,6 +1273,32 @@
 
 
 
+    const activeCatSelect = panel.querySelector('#ztf-active-cat');
+    if (activeCatSelect) {
+      activeCatSelect.addEventListener('change', () => {
+        config.activeCategoryId = activeCatSelect.value;
+        const catContent = body.querySelector('.ztf-tab-content[data-content="categoryRules"]');
+        if (catContent) {
+          const cats = activeCategories.length > 0 ? activeCategories : [];
+          const c = cats.find((cat) => cat.id === config.activeCategoryId);
+          if (c) {
+            const wl = (config.categoryWhitelist && config.categoryWhitelist[c.id]) || [];
+            const bl = (config.categoryBlacklist && config.categoryBlacklist[c.id]) || [];
+            catContent.innerHTML =
+              '<fieldset class="ztf-cat-fieldset">' +
+                '<legend class="ztf-cat-legend">' + c.name + '</legend>' +
+                '<label class="ztf-field-label">白名单（每行一个，命中则放行）</label>' +
+                '<textarea class="ztf-textarea" data-cat-wl="' + c.id + '" style="margin-bottom:10px;">' + escapeHtml(wl.join(NEWLINE)) + '</textarea>' +
+                '<label class="ztf-field-label">黑名单（每行一个，命中则屏蔽）</label>' +
+                '<textarea class="ztf-textarea" data-cat-bl="' + c.id + '">' + escapeHtml(bl.join(NEWLINE)) + '</textarea>' +
+              '</fieldset>';
+          } else {
+            catContent.innerHTML = '<p class="ztf-hint">暂无分类，请到设置中同步分类规则。</p>';
+          }
+        }
+      });
+    }
+
     const debugToggle = panel.querySelector('#ztf-debug-toggle');
     if (debugToggle) {
       debugToggle.addEventListener('click', () => {
@@ -1268,26 +1316,44 @@
     const syncCatsBtn = panel.querySelector('#ztf-sync-cats');
     if (syncCatsBtn) {
       syncCatsBtn.addEventListener('click', () => {
+        const activeCatId = config.activeCategoryId || '';
+        const activeCat = activeCategories.find((c) => c.id === activeCatId);
+        if (!activeCat) {
+          const statusEl = panel.querySelector('#ztf-remote-status');
+          if (statusEl) statusEl.textContent = '请先选择当前分类。';
+          return;
+        }
         syncCatsBtn.disabled = true;
         const oldText = syncCatsBtn.textContent;
         syncCatsBtn.textContent = '同步中...';
         fetchRemoteFile('categories.json', (res) => {
           if (res.ok && Array.isArray(res.data.categories)) {
-            activeCategories = res.data.categories;
-            try { GM_setValue('ztf_categories', activeCategories); } catch (e) { /* ignore */ }
-            for (const c of activeCategories) {
-              if (Array.isArray(c.whitelist)) {
-                if (!config.categoryWhitelist) config.categoryWhitelist = {};
-                config.categoryWhitelist[c.id] = c.whitelist.filter((v) => v && typeof v === 'string');
+            const remoteCat = res.data.categories.find((c) => c.id === activeCatId);
+            if (remoteCat) {
+              if (!config.categoryWhitelist) config.categoryWhitelist = {};
+              if (!config.categoryBlacklist) config.categoryBlacklist = {};
+              config.categoryWhitelist[activeCatId] = Array.isArray(remoteCat.whitelist) ? remoteCat.whitelist.filter((v) => v && typeof v === 'string') : [];
+              config.categoryBlacklist[activeCatId] = Array.isArray(remoteCat.blacklist) ? remoteCat.blacklist.filter((v) => v && typeof v === 'string') : [];
+              saveConfig(config);
+              const statusEl = panel.querySelector('#ztf-remote-status');
+              if (statusEl) statusEl.textContent = '同步成功，已更新「' + remoteCat.name + '」分类规则。';
+              const catContent = body.querySelector('.ztf-tab-content[data-content="categoryRules"]');
+              if (catContent) {
+                const wl = config.categoryWhitelist[activeCatId] || [];
+                const bl = config.categoryBlacklist[activeCatId] || [];
+                catContent.innerHTML =
+                  '<fieldset class="ztf-cat-fieldset">' +
+                    '<legend class="ztf-cat-legend">' + remoteCat.name + '</legend>' +
+                    '<label class="ztf-field-label">白名单（每行一个，命中则放行）</label>' +
+                    '<textarea class="ztf-textarea" data-cat-wl="' + activeCatId + '" style="margin-bottom:10px;">' + escapeHtml(wl.join(NEWLINE)) + '</textarea>' +
+                    '<label class="ztf-field-label">黑名单（每行一个，命中则屏蔽）</label>' +
+                    '<textarea class="ztf-textarea" data-cat-bl="' + activeCatId + '">' + escapeHtml(bl.join(NEWLINE)) + '</textarea>' +
+                  '</fieldset>';
               }
-              if (Array.isArray(c.blacklist)) {
-                if (!config.categoryBlacklist) config.categoryBlacklist = {};
-                config.categoryBlacklist[c.id] = c.blacklist.filter((v) => v && typeof v === 'string');
-              }
+            } else {
+              const statusEl = panel.querySelector('#ztf-remote-status');
+              if (statusEl) statusEl.textContent = '远程未找到该分类。';
             }
-            saveConfig(config);
-            const statusEl = panel.querySelector('#ztf-remote-status');
-            if (statusEl) statusEl.textContent = '同步成功，' + activeCategories.length + ' 个分类。';
           } else {
             const statusEl = panel.querySelector('#ztf-remote-status');
             if (statusEl) statusEl.textContent = '同步失败：' + res.error;
@@ -1358,6 +1424,10 @@
       const actionSelect = panel.querySelector('#ztf-default-action');
       if (actionSelect && ['low', 'basic', 'high'].includes(actionSelect.value)) {
         config.defaultAction = actionSelect.value;
+      }
+      const activeCatSelect2 = panel.querySelector('#ztf-active-cat');
+      if (activeCatSelect2 && activeCatSelect2.value) {
+        config.activeCategoryId = activeCatSelect2.value;
       }
       if (debugToggle) config.debug = debugToggle.classList.contains('on');
       if (msgToggle) config.messageShieldEnabled = msgToggle.classList.contains('on');
