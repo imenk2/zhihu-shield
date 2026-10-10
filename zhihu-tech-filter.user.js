@@ -2,7 +2,7 @@
 // @name         zh文章屏蔽器
 // @name:en      Zhihu Article Shield
 // @namespace    https://github.com/imenk2/zhihu-shield
-// @version      0.0.59
+// @version      0.0.60
 // @description  自动屏蔽zh推荐/热榜/专栏/圈子非技术类文章，支持作者/关键词/标题黑白名单过滤，冲突黄色折叠栏一键消冲突
 // @author       imenk2
 // @match        https://www.zhihu.com/*
@@ -1216,6 +1216,11 @@
             '<div class="ztf-settings-desc">从远程更新分类定义（关键词），不影响本地黑白名单</div></div>' +
             '<button class="ztf-btn ztf-btn-primary" id="ztf-sync-cats">同步</button>' +
           '</div>' +
+          '<div class="ztf-settings-row">' +
+            '<div><div class="ztf-settings-label">清理本地缓存</div>' +
+            '<div class="ztf-settings-desc">清除旧版分类缓存，防止旧数据残留</div></div>' +
+            '<button class="ztf-btn" id="ztf-clear-cache">清理</button>' +
+          '</div>' +
           '<div class="ztf-settings-row"><div class="ztf-settings-label" id="ztf-remote-status" style="color:var(--ztf-muted);font-weight:normal;"></div></div>' +
           '<div class="ztf-settings-row">' +
             '<div><div class="ztf-settings-label">配置备份</div></div>' +
@@ -1345,6 +1350,19 @@
             }
           }
         });
+      });
+    }
+
+    const clearCacheBtn = panel.querySelector('#ztf-clear-cache');
+    if (clearCacheBtn) {
+      clearCacheBtn.addEventListener('click', () => {
+        try {
+          GM_setValue('ztf_categories', null);
+          GM_setValue('ztf_question_patterns', null);
+        } catch (e) { /* ignore */ }
+        activeCategories = [];
+        const statusEl = panel.querySelector('#ztf-remote-status');
+        if (statusEl) statusEl.textContent = '本地缓存已清理，请点「同步」重新拉取分类定义。';
       });
     }
 
