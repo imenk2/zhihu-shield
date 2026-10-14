@@ -1,6 +1,6 @@
-# zh-shield
+# zh文章过滤器
 
-一个 Tampermonkey 用户脚本，在 zh 网站推荐栏自动屏蔽非技术类文章，只保留技术内容。
+一个 Tampermonkey 用户脚本，在 zh 网站推荐栏自动过滤非技术类文章，只保留技术内容。
 
 ## 浏览器与插件
 
@@ -9,7 +9,7 @@
 
 ## 功能
 
-- 自动判定 zh 推荐栏每篇文章是否技术类，非技术文章折叠屏蔽
+- 自动判定 zh 推荐栏每篇文章是否技术类，非技术文章折叠过滤
 - 多维度判定：标题黑名单 > 作者白名单 > 话题标签 > 技术/非技术关键词 > 默认行为
 - 每张卡片右侧 `⋯` 入口，一键加入/移出标题黑名单
 - 可视化配置面板，自定义各类名单与默认行为
@@ -21,7 +21,7 @@
 2. 浏览器访问下方 URL，Tampermonkey 识别 `.user.js` 并弹出安装确认：
 
 ```
-https://raw.githubusercontent.com/imenk2/zhihu-shield/main/zhihu-tech-filter.user.js
+https://raw.githubusercontent.com/imenk2/zhihu-shield/main/zhihu-article-filter.user.js
 ```
 
 3. 确认安装，打开 zh 网站即生效
