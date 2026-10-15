@@ -2,7 +2,7 @@
 // @name         zh文章过滤器
 // @name:en      Zhihu Article Filter
 // @namespace    https://github.com/imenk2/zhihu-shield
-// @version      0.1.1
+// @version      0.1.2
 // @description  自动屏蔽zh推荐/热榜/专栏/圈子非技术类文章，支持作者/关键词/标题黑白名单过滤，冲突黄色折叠栏一键消冲突
 // @author       imenk2
 // @match        https://www.zhihu.com/*
@@ -221,6 +221,7 @@
 
     const text = title || '';
     const lowerText = text.toLowerCase();
+    const lowerTextWithSummary = (text + ' ' + (info.summary || '')).toLowerCase();
 
     if (author && config.nonTechAuthors && config.nonTechAuthors.length > 0) {
       for (const a of config.nonTechAuthors) {
@@ -240,9 +241,15 @@
       }
     }
 
+    const unBl = (config.categoryBlacklist && config.categoryBlacklist['unmatched']) || [];
+    for (const k of unBl) {
+      if (k && lowerTextWithSummary.includes(k.toLowerCase())) {
+        return { isTech: false, reason: '黑名单[未命中]: ' + k, category: UNMATCHED_CAT };
+      }
+    }
+
     const hitCategories = [];
     const hitKeywordMap = {};
-    const lowerTextWithSummary = (text + ' ' + (info.summary || '')).toLowerCase();
     for (const cat of activeCategories) {
       const matchText = cat.id === 'knowledge' ? lowerTextWithSummary : lowerText;
       for (const kw of cat.keywords) {
@@ -289,12 +296,7 @@
       }
     }
 
-    const unBl = (config.categoryBlacklist && config.categoryBlacklist['unmatched']) || [];
-    for (const k of unBl) {
-      if (k && text.includes(k)) {
-        return { isTech: false, reason: '黑名单[未命中]: ' + k, category: UNMATCHED_CAT };
-      }
-    }
+
     if (hitCategories.length === 0) {
       const unWl = (config.categoryWhitelist && config.categoryWhitelist['unmatched']) || [];
       for (const k of unWl) {
