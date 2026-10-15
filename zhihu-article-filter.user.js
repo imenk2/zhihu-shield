@@ -2,7 +2,7 @@
 // @name         zh文章过滤器
 // @name:en      Zhihu Article Filter
 // @namespace    https://github.com/imenk2/zhihu-shield
-// @version      0.1.0
+// @version      0.1.1
 // @description  自动屏蔽zh推荐/热榜/专栏/圈子非技术类文章，支持作者/关键词/标题黑白名单过滤，冲突黄色折叠栏一键消冲突
 // @author       imenk2
 // @match        https://www.zhihu.com/*
@@ -214,6 +214,11 @@
 
   function classifyArticle(info) {
     const { title, author } = info;
+
+    if (!title) {
+      return { isTech: false, reason: '无标题直接屏蔽', category: null };
+    }
+
     const text = title || '';
     const lowerText = text.toLowerCase();
 
