@@ -23,4 +23,4 @@ dist/
 *.tmp
 
 # CodeArts
-.codeartsdoer/
+.codeartsdoer/.arts/

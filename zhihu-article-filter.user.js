@@ -2,7 +2,7 @@
 // @name         zh文章过滤器
 // @name:en      Zhihu Article Filter
 // @namespace    https://github.com/imenk2/zhihu-shield
-// @version      0.1.2
+// @version      0.1.3
 // @description  自动屏蔽zh推荐/热榜/专栏/圈子非技术类文章，支持作者/关键词/标题黑白名单过滤，冲突黄色折叠栏一键消冲突
 // @author       imenk2
 // @match        https://www.zhihu.com/*
@@ -209,7 +209,8 @@
     // 对想法/圈子等无标题卡片，生成备用展示名
     const displayTitle = title || (summary ? summary.replace(/\s+/g, ' ').slice(0, 30) : '动态内容');
 
-    return { title, displayTitle, author, summary, type: itemType };
+    const hasVideo = !!(card.querySelector('video') || card.querySelector('.ZDI--VideoCamera24'));
+    return { title, displayTitle, author, summary, type: itemType, hasVideo };
   }
 
   function classifyArticle(info) {
@@ -357,6 +358,9 @@
 
     if (action === 'low') {
       return { isTech: true, reason: '默认放行', category: null };
+    }
+    if (info.hasVideo && hitCategories.length === 0) {
+      return { isTech: false, reason: '视频文章未命中', category: null };
     }
     if (action === 'basic') {
       return { isTech: true, reason: '默认放行', category: null };
