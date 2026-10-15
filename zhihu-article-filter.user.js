@@ -785,6 +785,11 @@
 
       if (card.dataset.ztfStatus) {
         if (card.dataset.ztfStatus === 'passed') {
+          if (config.blockVideoArticles && (card.querySelector('video') || card.querySelector('.ZDI--VideoCamera24'))) {
+            if (stats.passed > 0) stats.passed--;
+            blockCard(card, info, false, null, '\u89c6\u9891\u6587\u7ae0', null);
+            continue;
+          }
           injectDotUnblocked(card, info);
         }
         continue;
